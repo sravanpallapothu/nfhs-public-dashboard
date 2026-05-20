@@ -666,6 +666,8 @@ async function s4_apply(){
     const tX = pixCX - scaleRad * cLng;
     const tY = pixCY + scaleRad * cLat;
     projection.scale(d3scale).translate([tX, tY]);
+    console.log('India proj: W='+W+' H='+H+' scale='+d3scale.toFixed(1)+' tX='+tX.toFixed(1)+' tY='+tY.toFixed(1));
+    console.log('India centre projects to:', projection([82.8, 22]));
   } else {
     projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
   }
