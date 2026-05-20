@@ -647,6 +647,10 @@ async function s4_apply(){
     // Use a reference projection fitted to a known-good bounding box
     // then extract scale/translate — avoids geoBounds winding bug entirely.
     // We use a MultiPoint geometry (winding-neutral) of India's four corners.
+    // Use fitSize with MultiPoint — winding-neutral, avoids geoBounds bug
+    // fitSize fits to [width, height] with no padding, so we pass reduced dims
+    const availW = W - padL - padR;
+    const availH = H - padTop - padBot;
     const indiaCorners = {
       type: 'Feature',
       geometry: {
@@ -657,9 +661,11 @@ async function s4_apply(){
         ]
       }
     };
-    const availW = W - padL - padR;
-    const availH = H - padTop - padBot;
-    projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], indiaCorners);
+    // fitSize to available area, then shift translate to account for padding
+    projection.fitSize([availW * 0.92, availH * 0.92], indiaCorners);
+    // Shift the translate to centre within the padded area
+    const [tx, ty] = projection.translate();
+    projection.translate([tx + padL + availW * 0.04, ty + padTop + availH * 0.04]);
   } else {
     projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
   }
