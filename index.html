@@ -644,32 +644,22 @@ async function s4_apply(){
     // D3 Mercator internally uses scale = R (earth radius in pixels) where
     // x = scale * (lng_rad + translate[0]) and y = scale * (-mercLat + translate[1])
     // We want India's bbox [68.19E-97.42E, 6.76N-37.08N] to fill the available space.
-    // D3 Mercator projection formula:
-    //   x_pixel = (lng_normalised + translate[0]) * scale * 2π
-    //   y_pixel = (-mercLat_normalised + translate[1]) * scale * 2π
-    // where lng_normalised = lng_rad / (2π) and mercLat_normalised = mercLat / (2π)
-    // So: translate[0] = pixCX/(scale*2π) - lng_norm_centre
-    //     translate[1] = pixCY/(scale*2π) + mercLat_norm_centre
-    const toRad = d => d * Math.PI / 180;
-    const mercLat = lat => Math.log(Math.tan(Math.PI/4 + toRad(lat)/2));
-    const TWO_PI = 2 * Math.PI;
-    // Normalised Mercator coordinates (divided by 2π as D3 uses internally)
-    const xMinN = toRad(68.19) / TWO_PI, xMaxN = toRad(97.42) / TWO_PI;
-    const yMinN = mercLat(6.76) / TWO_PI, yMaxN = mercLat(37.08) / TWO_PI;
+    // Use a reference projection fitted to a known-good bounding box
+    // then extract scale/translate — avoids geoBounds winding bug entirely.
+    // We use a MultiPoint geometry (winding-neutral) of India's four corners.
+    const indiaCorners = {
+      type: 'Feature',
+      geometry: {
+        type: 'MultiPoint',
+        coordinates: [
+          [68.19, 6.76], [97.42, 6.76],
+          [97.42, 37.08], [68.19, 37.08]
+        ]
+      }
+    };
     const availW = W - padL - padR;
     const availH = H - padTop - padBot;
-    // D3 scale = pixels per normalised unit
-    const d3scale = Math.min(availW / (xMaxN - xMinN), availH / (yMaxN - yMinN)) * 0.92;
-    // Centre in normalised units
-    const cX = (xMinN + xMaxN) / 2;
-    const cY = (yMinN + yMaxN) / 2;
-    // Pixel centre of drawing area
-    const pixCX = padL + availW / 2;
-    const pixCY = padTop + availH / 2;
-    // Solve for translate
-    const tX = pixCX / d3scale - cX;
-    const tY = pixCY / d3scale + cY;
-    projection.scale(d3scale).translate([tX, tY]);
+    projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], indiaCorners);
   } else {
     projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
   }
