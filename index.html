@@ -482,7 +482,7 @@ function s3_apply(){
 
 // GeoJSON paths — files must be in same folder as index.html on Netlify
 const GEOJSON = {
-  states:             'India_States_fornfhsdashboard.geojson',
+  states:             'India_States2_fornfhsdashboard.geojson',
   districts_national: 'India_Districts_fornfhsdashboard.geojson',
   // state-level files loaded dynamically: e.g. "Andhra_Pradesh_fornfhsdashboard.geojson"
 };
@@ -647,32 +647,10 @@ async function s4_apply(){
     // Use a reference projection fitted to a known-good bounding box
     // then extract scale/translate — avoids geoBounds winding bug entirely.
     // We use a MultiPoint geometry (winding-neutral) of India's four corners.
-    // Use .center() + .scale() + .translate() directly.
-    // This avoids fitExtent/fitSize/geoBounds entirely.
-    // Scale is computed so India's longitude span fits the available width.
-    // India spans ~29 degrees longitude and ~30 degrees latitude.
-    // At Mercator with .center(), scale = pixels per degree * (180/PI)
+    // New shapefile has correct winding — fitExtent works reliably
     const availW = W - padL - padR;
     const availH = H - padTop - padBot;
-    const lngSpan = 97.42 - 68.19; // ~29 degrees
-    const latSpan = 37.08 - 6.76;  // ~30 degrees
-    // pixels per degree in each axis
-    const scaleByLng = availW / lngSpan;
-    const scaleByLat = availH / latSpan;
-    // D3 Mercator scale: 1 unit = 1/(2PI) of the earth circumference
-    // At equator: 360 degrees = 2PI radians → scale * 2PI pixels
-    // So scale = (pixels_per_degree * 180) / PI
-    const d3scale = Math.min(scaleByLng, scaleByLat) * (180 / Math.PI) * 0.88;
-    // Centre of India
-    const centreLng = (68.19 + 97.42) / 2; // 82.8
-    const centreLat = (6.76 + 37.08) / 2;  // 21.9
-    // Pixel centre of the drawing area
-    const pixCX = padL + availW / 2;
-    const pixCY = padTop + availH / 2;
-    projection
-      .center([centreLng, centreLat])
-      .scale(d3scale)
-      .translate([pixCX, pixCY]);
+    projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
   } else {
     projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
   }
