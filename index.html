@@ -651,16 +651,20 @@ async function s4_apply(){
     const yMin = mercLat(6.76), yMax = mercLat(37.08);
     const availW = W - padL - padR;
     const availH = H - padTop - padBot;
-    // Scale in pixels per radian
+    // Scale in pixels per radian — fit both dimensions, keep 92% to add padding
     const scaleRad = Math.min(availW / (xMax - xMin), availH / (yMax - yMin)) * 0.92;
-    // D3 uses scale = scaleRad / (2*PI) as its scale parameter
+    // D3's scale parameter = scaleRad / (2*PI)
     const d3scale = scaleRad / (2 * Math.PI);
-    // Centre of India in Mercator radians
+    // Centre of India in Mercator space
     const cLng = (xMin + xMax) / 2;
     const cLat = (yMin + yMax) / 2;
-    // D3 translate maps the centre point to pixel centre of available area
-    const tX = (padL + W - padR) / 2 - scaleRad * cLng;
-    const tY = (padTop + H - padBot) / 2 + scaleRad * cLat;
+    // D3 Mercator: x = scale*(2PI)*(lng_rad) + tX  → tX = pixelCentreX - scaleRad*cLng
+    // D3 Mercator: y = -scale*(2PI)*(mercLat) + tY → tY = pixelCentreY + scaleRad*cLat
+    // pixel centre of the available drawing area (below header, above legend)
+    const pixCX = padL + availW / 2;
+    const pixCY = padTop + availH / 2;
+    const tX = pixCX - scaleRad * cLng;
+    const tY = pixCY + scaleRad * cLat;
     projection.scale(d3scale).translate([tX, tY]);
   } else {
     projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
