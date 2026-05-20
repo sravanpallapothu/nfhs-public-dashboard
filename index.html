@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>NFHS Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#f0f2f5;color:#1a1a1a;font-size:14px;min-height:100vh}
+nav{background:#1a3a5c;display:flex;align-items:stretch}
+.nav-brand{color:#fff;font-size:15px;font-weight:600;padding:0 20px;display:flex;align-items:center;border-right:1px solid rgba(255,255,255,.15);white-space:nowrap}
+.nav-tabs{display:flex;overflow-x:auto}
+.nav-tab{color:rgba(255,255,255,.65);padding:14px 18px;cursor:pointer;font-size:13px;font-weight:500;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap}
+.nav-tab:hover{color:#fff;background:rgba(255,255,255,.07)}
+.nav-tab.active{color:#fff;border-bottom-color:#5eb8ff}
+.screen{display:none;flex-direction:row;min-height:calc(100vh - 48px)}
+.screen.active{display:flex}
+.sidebar{width:260px;min-width:260px;background:#fff;border-right:1px solid #e2e5ea;padding:18px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+.main{flex:1;padding:20px;overflow-y:auto;min-width:0}
+.fg{display:flex;flex-direction:column;gap:5px}
+.lbl{font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
+select{width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;color:#1a1a1a;background:#fff}
+select:focus{outline:2px solid #1a3a5c;border-color:transparent}
+.btn{padding:8px 14px;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;transition:background .15s}
+.btn-primary{background:#1a3a5c;color:#fff}.btn-primary:hover{background:#14304d}
+.btn-secondary{background:#f3f4f6;color:#374151;border:1px solid #d1d5db}.btn-secondary:hover{background:#e5e7eb}
+.btn-sm{padding:5px 10px;font-size:12px}
+.dl-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ind-badge{display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.ind-name{font-size:15px;font-weight:700;color:#000}
+.dir-pill{font-size:11px;font-weight:600;padding:2px 9px;border-radius:10px;border:1px solid}
+.dir-pill.higher{background:#d1fae5;color:#065f46;border-color:#6ee7b7}
+.dir-pill.lower{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+.s1-main{background:#fff;padding:20px}
+.s1-header{margin-bottom:16px}
+.s1-subtitle{font-size:12px;color:#000;margin-top:3px}
+.cards-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.card{background:#fff;border-radius:8px;padding:13px 15px;border:1px solid #000}
+.card-val-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.card-val{font-size:22px;font-weight:700;color:#1a3a5c;line-height:1.2}
+.card-lbl{font-size:11px;font-weight:700;color:#000;margin-top:4px;text-transform:uppercase;letter-spacing:.03em}
+.card-sub{font-size:11px;color:#333;margin-top:2px}
+.card.highlight{border-color:#000;background:#f0f5ff}
+.card.best .card-val{color:#065f46}
+.card.worst .card-val{color:#991b1b}
+.section-head{font-size:11px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;margin-top:4px}
+.ticker{display:inline-flex;align-items:baseline;gap:3px;font-size:13px;font-weight:600;white-space:nowrap}
+.ticker.good{color:#059669}.ticker.bad{color:#dc2626}.ticker.neutral{color:#6b7280}
+.ticker-arrow{font-size:14px;line-height:1}
+.chart-box{background:#fff;border-radius:8px;border:1px solid #e2e5ea;padding:16px;margin-bottom:10px}
+.chart-box h3{font-size:13px;font-weight:600;color:#374151;margin-bottom:12px}
+.map-placeholder{background:#fff;border-radius:8px;border:1px dashed #d1d5db;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;gap:12px}
+.map-placeholder .icon{font-size:40px;opacity:.3}
+.map-placeholder h3{font-size:15px;font-weight:600;color:#374151}
+.map-placeholder p{font-size:13px;color:#9ca3af;max-width:360px;line-height:1.6}
+.map-placeholder code{font-size:12px;background:#f3f4f6;padding:2px 6px;border-radius:4px;color:#374151}
+.empty{text-align:center;padding:50px 20px;color:#9ca3af;font-size:13px}
+.divider{border:none;border-top:1px solid #e2e5ea;margin:4px 0}
+.how-wrap{background:#fff;border-radius:8px;border:1px solid #e2e5ea;padding:20px;max-width:680px}
+.how-wrap h2{font-size:15px;font-weight:700;color:#1a3a5c;margin-bottom:14px}
+.how-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.how-tab{padding:5px 12px;border-radius:16px;border:1px solid #d1d5db;font-size:12px;font-weight:500;cursor:pointer;background:#f9fafb;color:#6b7280;transition:all .15s}
+.how-tab.active{background:#1a3a5c;color:#fff;border-color:#1a3a5c}
+.how-content{display:none;font-size:13px;color:#374151;line-height:1.7}
+.how-content.active{display:block}
+.how-content ol{padding-left:18px}
+.how-content li{margin-bottom:5px}
+.how-content strong{font-weight:600;color:#1a1a1a}
+
+.choropleth-legend{display:flex;align-items:center;gap:18px;padding:10px 14px;background:#fff;border-radius:8px;border:1px solid #e2e5ea;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#374151}
+.legend-swatch{width:16px;height:16px;border-radius:3px;border:1px solid rgba(0,0,0,.1);flex-shrink:0}
+.legend-title{font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-right:4px}
+.choro-tooltip{position:fixed;background:rgba(26,26,26,.92);color:#fff;padding:7px 11px;border-radius:6px;font-size:12px;pointer-events:none;z-index:9999;max-width:200px;line-height:1.5;display:none}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-brand">NFHS Dashboard</div>
+  <div class="nav-tabs">
+    <div class="nav-tab active" onclick="showScreen('s1',this)">Snapshot</div>
+    <div class="nav-tab" onclick="showScreen('s2',this)">Temporal trend</div>
+    <div class="nav-tab" onclick="showScreen('s3',this)">Spatial-bar</div>
+    <div class="nav-tab" onclick="showScreen('s4',this)">Spatial-map</div>
+    <div class="nav-tab" onclick="showScreen('s5',this)">How to use</div>
+  </div>
+</nav>
+
+<!-- SCREEN 1: SNAPSHOT -->
+<div class="screen active" id="s1">
+  <div class="sidebar">
+    <div class="fg"><div class="lbl">Domain</div><select id="s1_domain" onchange="s1_onDomain()"><option value="">— Select —</option></select></div>
+    <div class="fg"><div class="lbl">Indicator</div><select id="s1_ind" onchange="showDirBadge('s1_ind','s1_dir')"><option value="">— Select —</option></select><div id="s1_dir"></div></div>
+    <hr class="divider"/>
+    <div class="fg"><div class="lbl">State</div><select id="s1_state"><option value="">— Select —</option></select></div>
+    <div class="fg"><div class="lbl">Round</div><select id="s1_round"><option value="">— Select —</option></select></div>
+    <button class="btn btn-primary" onclick="s1_apply()">Show snapshot</button>
+  </div>
+  <div class="main s1-main"><div id="s1_out"><div class="empty">Select a domain, indicator, state and round.</div></div></div>
+</div>
+
+<!-- SCREEN 2: TEMPORAL -->
+<div class="screen" id="s2">
+  <div class="sidebar">
+    <div class="fg"><div class="lbl">Domain</div><select id="s2_domain" onchange="s2_onDomain()"><option value="">— Select —</option></select></div>
+    <div class="fg"><div class="lbl">Indicator</div><select id="s2_ind" onchange="showDirBadge('s2_ind','s2_dir')"><option value="">— Select —</option></select><div id="s2_dir"></div></div>
+    <hr class="divider"/>
+    <div class="fg"><div class="lbl">Geography level</div>
+      <select id="s2_level" onchange="s2_onLevel()">
+        <option value="National">National</option>
+        <option value="State">State</option>
+        <option value="District">District</option>
+      </select>
+    </div>
+    <div class="fg" id="s2_stateGroup" style="display:none"><div class="lbl">State</div><select id="s2_state" onchange="s2_onState()"><option value="">— Select —</option></select></div>
+    <div class="fg" id="s2_distGroup" style="display:none"><div class="lbl">District</div><select id="s2_dist"><option value="">— Select —</option></select></div>
+    <button class="btn btn-primary" onclick="s2_apply()">Show trend</button>
+  </div>
+  <div class="main"><div id="s2_out"><div class="empty">Select an indicator and geography to see the time trend.</div></div></div>
+</div>
+
+<!-- SCREEN 3: SPATIAL-BAR -->
+<div class="screen" id="s3">
+  <div class="sidebar">
+    <div class="fg"><div class="lbl">Domain</div><select id="s3_domain" onchange="s3_onDomain()"><option value="">— Select —</option></select></div>
+    <div class="fg"><div class="lbl">Indicator</div><select id="s3_ind" onchange="showDirBadge('s3_ind','s3_dir')"><option value="">— Select —</option></select><div id="s3_dir"></div></div>
+    <hr class="divider"/>
+    <div class="fg"><div class="lbl">Geography level</div>
+      <select id="s3_level" onchange="s3_onLevel()">
+        <option value="National">Country → states</option>
+        <option value="State">State → districts</option>
+      </select>
+    </div>
+    <div class="fg" id="s3_stateGroup" style="display:none"><div class="lbl">State</div><select id="s3_state"><option value="">— Select —</option></select></div>
+    <div class="fg"><div class="lbl">Round</div><select id="s3_round"><option value="">— Select —</option></select></div>
+    <div class="fg"><div class="lbl">Sort order</div>
+      <select id="s3_sort">
+        <option value="desc">Descending (highest first)</option>
+        <option value="asc">Ascending (lowest first)</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="s3_apply()">Show chart</button>
+  </div>
+  <div class="main"><div id="s3_out"><div class="empty">Select filters and click Show chart.</div></div></div>
+</div>
+
+<!-- SCREEN 4: SPATIAL-MAP -->
+<div class="screen" id="s4">
+  <div class="sidebar">
+    <div class="fg"><div class="lbl">Domain</div><select id="s4_domain" onchange="s4_onDomain()"><option value="">— Select —</option></select></div>
+    <div class="fg"><div class="lbl">Indicator</div><select id="s4_ind" onchange="showDirBadge('s4_ind','s4_dir')"><option value="">— Select —</option></select><div id="s4_dir"></div></div>
+    <hr class="divider"/>
+    <div class="fg"><div class="lbl">Round</div><select id="s4_round"><option value="">— Select —</option></select></div>
+    <div class="fg"><div class="lbl">Map type</div>
+      <select id="s4_type" onchange="s4_onType()">
+        <option value="states">India — states</option>
+        <option value="districts_national">India — all districts</option>
+        <option value="districts_state">State — districts</option>
+      </select>
+    </div>
+    <div class="fg" id="s4_stateGroup" style="display:none"><div class="lbl">State</div><select id="s4_state"><option value="">— Select —</option></select></div>
+    <button class="btn btn-primary" style="margin-top:4px" onclick="s4_apply()">Show map</button>
+    <hr class="divider"/>
+    <div class="dl-row" style="margin-top:0">
+      <button class="btn btn-secondary btn-sm" onclick="s4_dlCSV()">⬇ CSV</button>
+      <button class="btn btn-secondary btn-sm" onclick="s4_dlPNG()">⬇ PNG</button>
+    </div>
+  </div>
+  <div class="main" id="s4_main" style="padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0">
+    <div id="s4_badge"></div>
+    <div id="s4_legend" style="display:none" class="choropleth-legend"></div>
+    <div id="s4_map" style="flex:1;min-height:500px;background:#fff;border-radius:8px;border:1px solid #e2e5ea;overflow:hidden">
+      <div class="empty" style="padding:80px 20px">Select filters and click Show map.</div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN 5: HOW TO USE -->
+<div class="screen" id="s5">
+  <div class="main" style="padding:24px">
+    <div class="how-wrap">
+      <h2>How to use this dashboard</h2>
+      <div class="how-tabs">
+        <div class="how-tab active" onclick="setHowTab('snapshot',this)">Snapshot</div>
+        <div class="how-tab" onclick="setHowTab('temporal',this)">Temporal trend</div>
+        <div class="how-tab" onclick="setHowTab('spatial',this)">Spatial-bar</div>
+        <div class="how-tab" onclick="setHowTab('choropleth',this)">Choropleth map</div>
+        <div class="how-tab" onclick="setHowTab('general',this)">General tips</div>
+      </div>
+      <div class="how-content active" id="how_snapshot">
+        <ol>
+          <li>Pick a <strong>domain</strong> (e.g. Maternal health) to narrow down the indicator list.</li>
+          <li>Select an <strong>indicator</strong> — a green or red pill will tell you if higher or lower values are better.</li>
+          <li>Choose a <strong>state</strong> and a <strong>survey round</strong>, then click <strong>Show snapshot</strong>.</li>
+          <li>You'll see 8 cards: the national value, your state's value, and the highest and lowest performing states and districts — both nationally and within your selected state.</li>
+          <li>Where data exists for a previous round, each card shows a <strong>change arrow</strong> (e.g. ↑ 4.2pp) coloured green for improvement, red for deterioration.</li>
+        </ol>
+      </div>
+      <div class="how-content" id="how_temporal">
+        <ol>
+          <li>Pick a <strong>domain</strong> and <strong>indicator</strong>.</li>
+          <li>Choose a <strong>geography level</strong>: National, State, or District.</li>
+          <li>If you select State or District, additional dropdowns will appear — choose your state and (optionally) district.</li>
+          <li>Click <strong>Show trend</strong> to see how the indicator has changed across NFHS rounds.</li>
+          <li>The <strong>blue line</strong> is your selected geography. The <strong>red line</strong> is always India. At district level, the <strong>violet line</strong> is the parent state.</li>
+          <li>Use the <strong>Download</strong> buttons to save the chart as a PNG or the data as a CSV.</li>
+        </ol>
+      </div>
+      <div class="how-content" id="how_spatial">
+        <ol>
+          <li>Pick a <strong>domain</strong> and <strong>indicator</strong>.</li>
+          <li>Choose <strong>Country → states</strong> to compare all states, or <strong>State → districts</strong> to compare districts within one state.</li>
+          <li>Select a <strong>survey round</strong> and a <strong>sort order</strong> (highest or lowest first).</li>
+          <li>Click <strong>Show chart</strong> to see a ranked horizontal bar chart with value labels on each bar.</li>
+          <li>A <strong>violet bar</strong> marks the reference benchmark — India's national value (Country → states) or the state average (State → districts) — so you can immediately see how many geographies fall above or below it.</li>
+          <li>Use the <strong>Download</strong> buttons to save the chart or the data. The reference bar is excluded from the CSV.</li>
+        </ol>
+      </div>
+      <div class="how-content" id="how_choropleth">
+        <ol>
+          <li>Pick a <strong>domain</strong>, <strong>indicator</strong>, and <strong>survey round</strong>.</li>
+          <li>Choose a <strong>map type</strong>:
+            <ul style="margin-top:4px;padding-left:16px">
+              <li><strong>India — states</strong>: all states coloured by their value.</li>
+              <li><strong>India — all districts</strong>: every district nationally (labels suppressed to reduce clutter; hover for name and value).</li>
+              <li><strong>State — districts</strong>: districts within one state, with name and value labels where space allows.</li>
+            </ul>
+          </li>
+          <li>Click <strong>Show map</strong>. The header card inside the map shows the indicator, direction, round, mean, SD, and the <strong>reference value</strong> (national average for state/district maps; state average for state→district maps).</li>
+          <li>Colours are based on <strong>standard deviation from the mean</strong>:
+            <ul style="margin-top:4px;padding-left:16px">
+              <li><span style="color:#1a7a4a;font-weight:600">Green</span> — best performers (more than 1 SD better than average).</li>
+              <li><span style="color:#d97706;font-weight:600">Amber</span> — within 1 SD of the mean.</li>
+              <li><span style="color:#c0392b;font-weight:600">Red</span> — worst performers (more than 1 SD worse than average).</li>
+              <li><span style="color:#9ca3af;font-weight:600">Grey</span> — no data available.</li>
+            </ul>
+          </li>
+          <li><strong>Hover</strong> over any region to see its name and exact value in a tooltip.</li>
+          <li><strong>Zoom and pan</strong> using your mouse scroll wheel and drag.</li>
+          <li>Use <strong>⬇ PNG</strong> to download the map including the header card and legend. Use <strong>⬇ CSV</strong> to download the underlying data (includes Parent State column for district maps).</li>
+        </ol>
+      </div>
+      <div class="how-content" id="how_general">
+        <ol>
+          <li><strong>Green arrow ↑ = improvement, red arrow ↓ = deterioration</strong> — the direction is indicator-aware, so a falling stunting rate is shown in green even though the number went down.</li>
+          <li>Cards or values showing <em>No data</em> mean that particular geography was not covered in that round — this is common for districts in earlier rounds (NFHS-1/2/3).</li>
+          <li>Some newer districts (carved out after 2016) may not appear on the choropleth map as separate units if NFHS-5 did not publish a separate factsheet for them.</li>
+          <li>All data comes from the National Family Health Survey (NFHS), conducted by the Ministry of Health and Family Welfare, Government of India.</li>
+          <li>For questions or to report an error, contact the dashboard team.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSpS9PZF9aVMVEGX0A9LdN1jsggbw0Kae-9gsrdwG7wqRp0Tr_MVrwfzOcGJx5TPYogFkLysZnPKs6E/pub?gid=836994213&single=true&output=csv";
+
+let allRows=[], s2Chart=null, s3Chart=null;
+
+async function init(){
+  if(!SHEET_URL){
+    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;color:#c0392b"><h2>No data source configured</h2><p>Set SHEET_URL at the top of the script.</p></div>';
+    return;
+  }
+  try {
+    const r = await fetch(SHEET_URL);
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    const csv = await r.text();
+    allRows = Papa.parse(csv,{header:true,skipEmptyLines:true,dynamicTyping:true}).data;
+    if(allRows.length === 0) throw new Error("CSV parsed but no rows found");
+  } catch(e) {
+    document.body.innerHTML = `<div style="padding:40px;font-family:sans-serif;color:#c0392b">
+      <h2>⚠️ Could not load data from Google Sheets</h2>
+      <p><strong>Error:</strong> ${e.message}</p>
+      <p>This is usually a <strong>CORS block</strong> in the sandboxed preview.<br>
+      The dashboard will work correctly when hosted on GitHub Pages or Netlify.</p>
+      <p>To verify your sheet is published correctly, open this URL in your browser:<br>
+      <a href="${SHEET_URL}" target="_blank" style="color:#1a3a5c;word-break:break-all">${SHEET_URL}</a></p>
+      <p>If it downloads a CSV file, your sheet is set up correctly — the issue is only the sandbox.</p>
+    </div>`;
+    return;
+  }
+  ['s1','s2','s3','s4'].forEach(p=>{
+    const d=uniq(allRows.map(r=>r.Domain));
+    document.getElementById(p+'_domain').innerHTML='<option value="">— Select —</option>'+d.map(v=>`<option value="${v}">${v}</option>`).join('');
+  });
+  buildRoundSelect('s1_round');
+  buildRoundSelect('s3_round');
+  buildRoundSelect('s4_round');
+  const states=uniq(allRows.filter(r=>r['Geo Level']==='State').map(r=>r.Geography));
+  ['s1_state','s2_state','s3_state','s4_state'].forEach(id=>{
+    document.getElementById(id).innerHTML='<option value="">— Select —</option>'+states.map(s=>`<option value="${s}">${s}</option>`).join('');
+  });
+  document.getElementById('s2_state').addEventListener('change',s2_onState);
+}
+
+function uniq(a){ return [...new Set(a)].filter(Boolean).sort(); }
+function val(id){ return document.getElementById(id).value; }
+function setOpts(id,arr,ph){ document.getElementById(id).innerHTML=(ph?`<option value="">— ${ph} —</option>`:'')+arr.map(v=>`<option value="${v}">${v}</option>`).join(''); }
+function buildRoundSelect(id){ setOpts(id,uniq(allRows.map(r=>r.Round))); }
+function onDomain(p){ const d=val(p+'_domain'); setOpts(p+'_ind',uniq(allRows.filter(r=>!d||r.Domain===d).map(r=>r.Indicator)),'Select indicator'); document.getElementById(p+'_dir').innerHTML=''; }
+function showScreen(id,el){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); document.getElementById(id).classList.add('active'); el.classList.add('active'); }
+function getDirection(ind){ const r=allRows.find(x=>x.Indicator===ind); return r?r.Direction:null; }
+function showDirBadge(selId,badgeId){ const ind=val(selId),dir=getDirection(ind),el=document.getElementById(badgeId); if(!ind||!dir){el.innerHTML='';return;} const cls=dir==='Higher is better'?'higher':'lower'; const sym=dir==='Higher is better'?'↑ Higher is better':'↓ Lower is better'; el.innerHTML=`<span class="dir-pill ${cls}" style="margin-top:5px;display:inline-block">${sym}</span>`; }
+function getRoundsFor(ind,geo,lvl){ return uniq(allRows.filter(r=>r.Indicator===ind&&r.Geography===geo&&r['Geo Level']===lvl).map(r=>r.Round)); }
+function getPrevRound(ind,geo,lvl,cur){ const rds=getRoundsFor(ind,geo,lvl); const i=rds.indexOf(cur); return i>0?rds[i-1]:null; }
+function findVal(ind,geo,lvl,round){ const r=allRows.find(x=>x.Indicator===ind&&x.Geography===geo&&x['Geo Level']===lvl&&x.Round===round); return r?r.Value:null; }
+function ticker(cur,prev,dir){ if(cur==null||prev==null) return ''; const delta=cur-prev,abs=Math.abs(delta).toFixed(1),up=delta>0; const good=dir==='Higher is better'?up:!up; const cls=delta===0?'neutral':good?'good':'bad'; return `<span class="ticker ${cls}"><span class="ticker-arrow">${up?'↑':'↓'}</span>${abs}pp</span>`; }
+
+function dlCSV(rows,filename){ if(!rows||!rows.length) return; const keys=Object.keys(rows[0]); const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n'); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }
+function dlChart(chartObj,filename){ if(!chartObj) return; const orig=chartObj.canvas; const tmp=document.createElement('canvas'); tmp.width=orig.width; tmp.height=orig.height; const ctx=tmp.getContext('2d'); ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,tmp.width,tmp.height); ctx.drawImage(orig,0,0); const url=tmp.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+function setHowTab(id,el){ document.querySelectorAll('.how-tab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.how-content').forEach(c=>c.classList.remove('active')); el.classList.add('active'); document.getElementById('how_'+id).classList.add('active'); }
+
+// ── SCREEN 1 ──────────────────────────────────────────────────────
+function s1_onDomain(){ onDomain('s1'); }
+function s1_apply(){
+  const ind=val('s1_ind'),state=val('s1_state'),round=val('s1_round');
+  if(!ind||!state||!round){ alert('Please select all filters.'); return; }
+  const dir=getDirection(ind), indRows=allRows.filter(r=>r.Indicator===ind);
+  function getCard(geo,lvl){ const v=findVal(ind,geo,lvl,round),prev=getPrevRound(ind,geo,lvl,round),vp=prev?findVal(ind,geo,lvl,prev):null; return{v,tk:ticker(v,vp,dir),prev}; }
+  const nat=getCard('India','National'),st=getCard(state,'State');
+  const stData=indRows.filter(r=>r['Geo Level']==='State'&&r.Round===round);
+  const bestSt=stData.length?stData.reduce((a,b)=>b.Value>a.Value?b:a):null;
+  const worstSt=stData.length?stData.reduce((a,b)=>b.Value<a.Value?b:a):null;
+  const allDist=indRows.filter(r=>r['Geo Level']==='District'&&r.Round===round);
+  const bestDA=allDist.length?allDist.reduce((a,b)=>b.Value>a.Value?b:a):null;
+  const worstDA=allDist.length?allDist.reduce((a,b)=>b.Value<a.Value?b:a):null;
+  const stDist=indRows.filter(r=>r['Geo Level']==='District'&&r['Parent State']===state&&r.Round===round);
+  const bestDS=stDist.length?stDist.reduce((a,b)=>b.Value>a.Value?b:a):null;
+  const worstDS=stDist.length?stDist.reduce((a,b)=>b.Value<a.Value?b:a):null;
+  function mkTk(row){ if(!row) return ''; const p=getPrevRound(ind,row.Geography,row['Geo Level'],round); return ticker(row.Value,p?findVal(ind,row.Geography,row['Geo Level'],p):null,dir); }
+  const noData='<span style="color:#9ca3af;font-size:13px">No data</span>';
+  function card(v,tk,lbl,sub,cls=''){ return `<div class="card ${cls}"><div class="card-val-row"><span class="card-val">${v!=null?v:noData}</span>${tk}</div><div class="card-lbl">${lbl}</div>${sub?`<div class="card-sub">${sub}</div>`:''}</div>`; }
+  const prevNote=(geo,lvl)=>{ const p=getPrevRound(ind,geo,lvl,round); return p?`vs ${p}`:''; };
+  const dirCls=dir==='Higher is better'?'higher':'lower';
+  const dirSym=dir==='Higher is better'?'↑ Higher is better':'↓ Lower is better';
+  document.getElementById('s1_out').innerHTML=`
+    <div class="s1-header">
+      <div class="ind-badge"><span class="ind-name">${ind}</span>${dir?`<span class="dir-pill ${dirCls}">${dirSym}</span>`:''}</div>
+      <div class="s1-subtitle">${state} · ${round}</div>
+    </div>
+    <div class="section-head">Reference benchmarks</div>
+    <div class="cards-grid">
+      ${card(nat.v,nat.tk,'India (national)',prevNote('India','National'),'highlight')}
+      ${card(st.v,st.tk,state,prevNote(state,'State'),'highlight')}
+    </div>
+    <div class="section-head">State extremes · all states · ${round}</div>
+    <div class="cards-grid">
+      ${card(bestSt?.Value,mkTk(bestSt),'Best state',bestSt?.Geography||'','best')}
+      ${card(worstSt?.Value,mkTk(worstSt),'Lowest state',worstSt?.Geography||'','worst')}
+    </div>
+    <div class="section-head">District extremes · all districts · ${round}</div>
+    <div class="cards-grid">
+      ${card(bestDA?.Value,mkTk(bestDA),'Best district (national)',bestDA?bestDA.Geography+' · '+bestDA['Parent State']:'No district data','best')}
+      ${card(worstDA?.Value,mkTk(worstDA),'Lowest district (national)',worstDA?worstDA.Geography+' · '+worstDA['Parent State']:'No district data','worst')}
+    </div>
+    <div class="section-head">District extremes · ${state} · ${round}</div>
+    <div class="cards-grid">
+      ${card(bestDS?.Value,mkTk(bestDS),'Best district in '+state,bestDS?.Geography||'No district data','best')}
+      ${card(worstDS?.Value,mkTk(worstDS),'Lowest district in '+state,worstDS?.Geography||'No district data','worst')}
+    </div>`;
+}
+
+// ── SCREEN 2 ──────────────────────────────────────────────────────
+const COLOR_INDIA  = '#c0392b'; // red   — India always
+const COLOR_FOCUS  = '#1a6bbf'; // blue  — selected state or district
+const COLOR_PARENT = '#7c3aed'; // violet — parent state (district level only)
+
+function s2_onDomain(){ onDomain('s2'); }
+function s2_onLevel(){ const lvl=val('s2_level'); const show=(id,v)=>{ const el=document.getElementById(id); el.style.display=v?'flex':'none'; el.style.flexDirection='column'; el.style.gap='5px'; }; show('s2_stateGroup',lvl==='State'||lvl==='District'); show('s2_distGroup',lvl==='District'); }
+function s2_onState(){ const state=val('s2_state'); setOpts('s2_dist',uniq(allRows.filter(r=>r['Geo Level']==='District'&&(!state||r['Parent State']===state)).map(r=>r.Geography)),'Select district'); }
+
+let s2Rows=[];
+function s2_apply(){
+  const ind=val('s2_ind'),lvl=val('s2_level');
+  if(!ind){ alert('Please select an indicator.'); return; }
+  const dir=getDirection(ind),indRows=allRows.filter(r=>r.Indicator===ind);
+  const rounds=uniq(indRows.map(r=>r.Round));
+  const natData=rounds.map(rd=>{ const r=indRows.find(x=>x.Geography==='India'&&x['Geo Level']==='National'&&x.Round===rd); return r?r.Value:null; });
+  let datasets=[],focusLabel='';
+
+  if(lvl==='National'){
+    focusLabel='India';
+    s2Rows=rounds.map((rd,i)=>({Indicator:ind,Geography:'India','Geo Level':'National',Round:rd,Value:natData[i]}));
+    datasets=[{label:'India',data:natData,borderColor:COLOR_INDIA,backgroundColor:COLOR_INDIA+'22',tension:.3,fill:false,pointRadius:5,borderWidth:2.5}];
+  } else if(lvl==='State'){
+    const state=val('s2_state'); if(!state){ alert('Please select a state.'); return; }
+    focusLabel=state;
+    const stData=rounds.map(rd=>{ const r=indRows.find(x=>x.Geography===state&&x['Geo Level']==='State'&&x.Round===rd); return r?r.Value:null; });
+    s2Rows=[...rounds.map((rd,i)=>({Indicator:ind,Geography:state,'Geo Level':'State',Round:rd,Value:stData[i]})),...rounds.map((rd,i)=>({Indicator:ind,Geography:'India','Geo Level':'National',Round:rd,Value:natData[i]}))];
+    datasets=[
+      {label:state,data:stData,borderColor:COLOR_FOCUS,backgroundColor:COLOR_FOCUS+'22',tension:.3,fill:false,pointRadius:5,borderWidth:2.5},
+      {label:'India (reference)',data:natData,borderColor:COLOR_INDIA,borderDash:[5,4],tension:.3,fill:false,pointRadius:3,borderWidth:1.5}
+    ];
+  } else {
+    const state=val('s2_state'),dist=val('s2_dist'); if(!state||!dist){ alert('Please select a state and district.'); return; }
+    focusLabel=dist;
+    const distData=rounds.map(rd=>{ const r=indRows.find(x=>x.Geography===dist&&x['Geo Level']==='District'&&x.Round===rd); return r?r.Value:null; });
+    const stData=rounds.map(rd=>{ const r=indRows.find(x=>x.Geography===state&&x['Geo Level']==='State'&&x.Round===rd); return r?r.Value:null; });
+    s2Rows=[...rounds.map((rd,i)=>({Indicator:ind,Geography:dist,'Geo Level':'District','Parent State':state,Round:rd,Value:distData[i]})),...rounds.map((rd,i)=>({Indicator:ind,Geography:state,'Geo Level':'State',Round:rd,Value:stData[i]})),...rounds.map((rd,i)=>({Indicator:ind,Geography:'India','Geo Level':'National',Round:rd,Value:natData[i]}))];
+    datasets=[
+      {label:dist,data:distData,borderColor:COLOR_FOCUS,backgroundColor:COLOR_FOCUS+'22',tension:.3,fill:false,pointRadius:5,borderWidth:2.5},
+      {label:state+' (state)',data:stData,borderColor:COLOR_PARENT,borderDash:[5,4],tension:.3,fill:false,pointRadius:3,borderWidth:1.5},
+      {label:'India (national)',data:natData,borderColor:COLOR_INDIA,borderDash:[3,3],tension:.3,fill:false,pointRadius:3,borderWidth:1.5}
+    ];
+  }
+
+  const dirCls=dir==='Higher is better'?'higher':'lower';
+  const dirSym=dir==='Higher is better'?'↑ Higher is better':'↓ Lower is better';
+  const slug=focusLabel.replace(/\s+/g,'_');
+  document.getElementById('s2_out').innerHTML=`
+    <div class="ind-badge"><span class="ind-name">${ind}</span>${dir?`<span class="dir-pill ${dirCls}">${dirSym}</span>`:''}</div>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:12px">Time trend · ${focusLabel}</div>
+    <div class="chart-box"><canvas id="s2chart"></canvas></div>
+    <div class="dl-row">
+      <button class="btn btn-secondary btn-sm" onclick="dlChart(s2Chart,'trend_${slug}.png')">⬇ Download chart (PNG)</button>
+      <button class="btn btn-secondary btn-sm" onclick="dlCSV(s2Rows,'trend_${slug}.csv')">⬇ Download data (CSV)</button>
+    </div>`;
+  if(s2Chart){ s2Chart.destroy(); s2Chart=null; }
+  s2Chart=new Chart(document.getElementById('s2chart').getContext('2d'),{type:'line',data:{labels:rounds,datasets},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:12}}},tooltip:{mode:'index',intersect:false}},scales:{x:{grid:{display:false},ticks:{font:{size:12}}},y:{grid:{color:'#f3f4f6'},ticks:{font:{size:12}},beginAtZero:false}}}});
+}
+
+// ── SCREEN 3 ──────────────────────────────────────────────────────
+function s3_onDomain(){ onDomain('s3'); }
+function s3_onLevel(){ const lvl=val('s3_level'); const sg=document.getElementById('s3_stateGroup'); sg.style.display=lvl==='State'?'flex':'none'; sg.style.flexDirection='column'; sg.style.gap='5px'; }
+
+let s3Rows=[];
+function s3_apply(){
+  const ind=val('s3_ind'),round=val('s3_round'),lvl=val('s3_level'),sortDir=val('s3_sort');
+  if(!ind||!round){ alert('Please select an indicator and round.'); return; }
+  const dir=getDirection(ind),indRows=allRows.filter(r=>r.Indicator===ind&&r.Round===round);
+  let geoData={},title='',geoLevel='',refGeo='',refLabel='';
+  if(lvl==='National'){
+    indRows.filter(r=>r['Geo Level']==='State').forEach(r=>{ geoData[r.Geography]=r.Value; });
+    title=`${ind} · by state · ${round}`; geoLevel='State';
+    // Add India as reference bar
+    const natRow=allRows.find(r=>r.Indicator===ind&&r.Round===round&&r.Geography==='India'&&r['Geo Level']==='National');
+    if(natRow!=null){ geoData['India']=natRow.Value; refGeo='India'; refLabel='India (national)'; }
+  } else {
+    const state=val('s3_state'); if(!state){ alert('Please select a state.'); return; }
+    indRows.filter(r=>r['Geo Level']==='District'&&r['Parent State']===state).forEach(r=>{ geoData[r.Geography]=r.Value; });
+    title=`${ind} · ${state} districts · ${round}`; geoLevel='District';
+    // Add state as reference bar
+    const stRow=allRows.find(r=>r.Indicator===ind&&r.Round===round&&r.Geography===state&&r['Geo Level']==='State');
+    if(stRow!=null){ geoData[state]=stRow.Value; refGeo=state; refLabel=state+' (state avg)'; }
+  }
+  const geos=Object.keys(geoData),values=Object.values(geoData);
+  if(!geos.length){ document.getElementById('s3_out').innerHTML='<div class="empty">No data for this selection.</div>'; return; }
+  const sorted=[...geos].sort((a,b)=>sortDir==='desc'?geoData[b]-geoData[a]:geoData[a]-geoData[b]);
+  const maxV=Math.max(...sorted.map(g=>geoData[g]));
+  // Per-bar colours: violet for reference geo, blue for all others
+  const BAR_BLUE='#378ADD', BAR_REF='#7c3aed', BORDER_BLUE='#185FA5', BORDER_REF='#5b21b6';
+  const bgColors=sorted.map(g=>g===refGeo?BAR_REF:BAR_BLUE);
+  const bdColors=sorted.map(g=>g===refGeo?BORDER_REF:BORDER_BLUE);
+  // Exclude reference geo from s3Rows (it's a benchmark, not a data row)
+  s3Rows=sorted.filter(g=>g!==refGeo).map(g=>({Indicator:ind,Geography:g,'Geo Level':geoLevel,Round:round,Value:geoData[g]}));
+  const dirCls=dir==='Higher is better'?'higher':'lower';
+  const dirSym=dir==='Higher is better'?'↑ Higher is better':'↓ Lower is better';
+  const legendHtml=refGeo?`<div style="display:flex;gap:16px;align-items:center;margin-bottom:8px;font-size:12px">
+    <span><span style="display:inline-block;width:12px;height:12px;background:${BAR_BLUE};border-radius:2px;margin-right:4px"></span>States/Districts</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:${BAR_REF};border-radius:2px;margin-right:4px"></span>${refLabel}</span>
+  </div>`:'';
+  document.getElementById('s3_out').innerHTML=`
+    <div class="ind-badge"><span class="ind-name">${ind}</span>${dir?`<span class="dir-pill ${dirCls}">${dirSym}</span>`:''}</div>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:8px">${title}</div>
+    ${legendHtml}
+    <div class="chart-box"><canvas id="s3chart"></canvas></div>
+    <div class="dl-row">
+      <button class="btn btn-secondary btn-sm" onclick="dlChart(s3Chart,'spatial_bar.png')">⬇ Download chart (PNG)</button>
+      <button class="btn btn-secondary btn-sm" onclick="dlCSV(s3Rows,'spatial_bar.csv')">⬇ Download data (CSV)</button>
+    </div>`;
+  if(s3Chart){ s3Chart.destroy(); s3Chart=null; }
+  s3Chart=new Chart(document.getElementById('s3chart').getContext('2d'),{type:'bar',data:{labels:sorted,datasets:[{label:ind,data:sorted.map(g=>geoData[g]),backgroundColor:bgColors,borderColor:bdColors,borderWidth:1,barThickness:14}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x}`}}},scales:{x:{grid:{color:'#f3f4f6'},ticks:{font:{size:11}},max:maxV*1.18},y:{grid:{display:false},ticks:{font:{size:11}}}},animation:{onComplete(){const chart=s3Chart;if(!chart)return;const ctx=chart.ctx;ctx.save();ctx.font='600 11px system-ui,sans-serif';ctx.fillStyle='#1a1a1a';ctx.textAlign='left';ctx.textBaseline='middle';chart.data.datasets[0].data.forEach((v,i)=>{const meta=chart.getDatasetMeta(0);const bar=meta.data[i];if(bar)ctx.fillText(v,bar.x+5,bar.y);});ctx.restore();}}}});
+  document.getElementById('s3chart').style.height=Math.max(260,sorted.length*26)+'px';
+}
+
+// ── SCREEN 4: CHOROPLETH ──────────────────────────────────────────
+
+// GeoJSON paths — files must be in same folder as index.html on Netlify
+const GEOJSON = {
+  states:             'India_States_fornfhsdashboard.geojson',
+  districts_national: 'India_Districts_fornfhsdashboard.geojson',
+  // state-level files loaded dynamically: e.g. "Andhra_Pradesh_fornfhsdashboard.geojson"
+};
+
+const CHORO_GREEN  = '#1a7a4a';
+const CHORO_AMBER  = '#d97706';
+const CHORO_RED    = '#c0392b';
+const CHORO_NODATA = '#d1d5db';
+
+let s4GeoCache = {};   // cache loaded GeoJSONs
+let s4Rows = [];       // for CSV download
+let s4SvgEl = null;    // for PNG download
+
+function s4_onDomain(){ onDomain('s4'); }
+function s4_onType(){
+  const t = val('s4_type');
+  const sg = document.getElementById('s4_stateGroup');
+  sg.style.display = t === 'districts_state' ? 'flex' : 'none';
+  sg.style.flexDirection = 'column';
+  sg.style.gap = '5px';
+}
+
+async function loadGeoJSON(url){
+  if(s4GeoCache[url]) return s4GeoCache[url];
+  const r = await fetch(url);
+  if(!r.ok) throw new Error(`GeoJSON not found: ${url}`);
+  const data = await r.json();
+  s4GeoCache[url] = data;
+  return data;
+}
+
+function getStateFilename(state){
+  // Spaces in state names are kept as-is in the geojson filename
+  // e.g. "Tamil Nadu" -> "Tamil Nadu_fornfhsdashboard.geojson"
+  // Non-space special chars (& / etc) are replaced with _
+  return state.replace(/[^A-Za-z0-9 ]/g, '_') + '_fornfhsdashboard.geojson';
+}
+
+async function s4_apply(){
+  const ind   = val('s4_ind');
+  const round = val('s4_round');
+  const type  = val('s4_type');
+  if(!ind || !round){ alert('Please select an indicator and round.'); return; }
+  if(type === 'districts_state' && !val('s4_state')){ alert('Please select a state.'); return; }
+
+  const dir      = getDirection(ind);
+  const indRows  = allRows.filter(r => r.Indicator === ind && r.Round === round);
+  const mapDiv   = document.getElementById('s4_map');
+  mapDiv.innerHTML = '<div class="empty" style="padding:80px 20px">Loading map…</div>';
+
+  // Build value lookup
+  // valueMap: Geography -> Value (for colouring)
+  // parentMap: Geography -> Parent State (for CSV, districts_national only)
+  let geoKey, geoLevel, valueMap = {}, parentMap = {}, url, refLabel = '', refValue = null;
+  if(type === 'states'){
+    geoKey = 'ST_NM'; geoLevel = 'State';
+    indRows.filter(r => r['Geo Level'] === 'State').forEach(r => { valueMap[r.Geography] = r.Value; });
+    url = GEOJSON.states;
+    // Reference: national value
+    const natRow = allRows.find(r => r.Indicator === ind && r.Round === round && r.Geography === 'India' && r['Geo Level'] === 'National');
+    refLabel = 'India (national)'; refValue = natRow ? natRow.Value : null;
+  } else if(type === 'districts_national'){
+    geoKey = 'DISTRICT'; geoLevel = 'District';
+    indRows.filter(r => r['Geo Level'] === 'District').forEach(r => {
+      valueMap[r.Geography] = r.Value;
+      parentMap[r.Geography] = r['Parent State'] || '';
+    });
+    url = GEOJSON.districts_national;
+    // Reference: national value
+    const natRow = allRows.find(r => r.Indicator === ind && r.Round === round && r.Geography === 'India' && r['Geo Level'] === 'National');
+    refLabel = 'India (national)'; refValue = natRow ? natRow.Value : null;
+  } else {
+    const state = val('s4_state');
+    geoKey = 'DISTRICT'; geoLevel = 'District';
+    indRows.filter(r => r['Geo Level'] === 'District' && r['Parent State'] === state).forEach(r => { valueMap[r.Geography] = r.Value; });
+    url = getStateFilename(state);
+    // Reference: state value
+    const stRow = allRows.find(r => r.Indicator === ind && r.Round === round && r.Geography === state && r['Geo Level'] === 'State');
+    refLabel = state; refValue = stRow ? stRow.Value : null;
+  }
+
+  let geo;
+  try {
+    geo = await loadGeoJSON(url);
+  } catch(e){
+    mapDiv.innerHTML = `<div class="empty" style="padding:80px 20px;color:#c0392b">Could not load GeoJSON:<br>${e.message}<br><small>Make sure the file is deployed to Netlify alongside index.html.</small></div>`;
+    return;
+  }
+
+  // Compute stats for colour thresholds (std-dev based)
+  const vals = Object.values(valueMap).filter(v => v != null && !isNaN(v));
+  const mean = vals.reduce((s,v) => s+v, 0) / vals.length;
+  const sd   = Math.sqrt(vals.reduce((s,v) => s + (v-mean)**2, 0) / vals.length);
+  const low  = mean - sd;
+  const high = mean + sd;
+
+  function getColour(v){
+    if(v == null || isNaN(v)) return CHORO_NODATA;
+    const good = dir === 'Higher is better';
+    if(good){
+      if(v >= high) return CHORO_GREEN;
+      if(v <= low)  return CHORO_RED;
+      return CHORO_AMBER;
+    } else {
+      if(v <= low)  return CHORO_GREEN;
+      if(v >= high) return CHORO_RED;
+      return CHORO_AMBER;
+    }
+  }
+
+  // Build rows for CSV download
+  // Force consistent column order so dlCSV header is always complete
+  s4Rows = Object.entries(valueMap).map(([geo, value]) => ({
+    Indicator:        ind,
+    Geography:        geo,
+    'Geo Level':      geoLevel,
+    'Parent State':   (type !== 'states') ? (parentMap[geo] || val('s4_state') || '') : '',
+    Round:            round,
+    Value:            value
+  }));
+
+  // Render SVG choropleth using D3
+  // Use a short delay so the div has fully rendered and getBoundingClientRect is accurate
+  mapDiv.innerHTML = '';
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+  const rect = mapDiv.getBoundingClientRect();
+  const W = Math.max(rect.width  || mapDiv.offsetWidth  || 800, 400);
+  const H = Math.max(rect.height || mapDiv.offsetHeight || 550, 400);
+
+  const showLabels = (type !== 'districts_national');
+
+  const svg = d3.select(mapDiv).append('svg')
+    .attr('width', W).attr('height', H)
+    .attr('viewBox', `0 0 ${W} ${H}`)
+    .style('display','block').style('width','100%').style('height','100%');
+
+  s4SvgEl = svg.node();
+
+  // Tooltip
+  let tooltip = document.getElementById('s4tooltip');
+  if(!tooltip){
+    tooltip = document.createElement('div');
+    tooltip.id = 's4tooltip';
+    tooltip.className = 'choro-tooltip';
+    document.body.appendChild(tooltip);
+  }
+
+  // Reserve space: top 75px for header card, bottom 70px for 2-row legend
+  const padL = 20, padR = 20, padTop = 80, padBot = 70;
+
+  // For states: use a synthetic bounding box GeoJSON with India's known
+  // correct coordinates, avoiding geoBounds bug with wrongly-wound rings.
+  // We construct a LineString through the four corners — LineString winding
+  // does not matter for geoBounds, so it always returns correct bounds.
+  const projection = d3.geoMercator();
+  if(type === 'states'){
+    const indiaBbox = {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [68.19, 6.76], [97.42, 6.76],
+          [97.42, 37.08], [68.19, 37.08],
+          [68.19, 6.76]
+        ]
+      }
+    };
+    // fitExtent on LineString gives correct scale but wrong translate for Mercator
+    // So: use the scale from fitExtent, then manually set center+translate
+    projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], indiaBbox);
+    const indiaScale = projection.scale();
+    // Reset to standard Mercator, apply computed scale, centre on India's midpoint
+    projection
+      .scale(indiaScale)
+      .center([82.8, 22.0])
+      .translate([(padL + W - padR) / 2, (padTop + H - padBot) / 2]);
+  } else {
+    projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
+  }
+  const path = d3.geoPath().projection(projection);
+
+  // Debug: print first feature properties to check key names
+  if(geo.features.length > 0){
+    console.log('First feature properties:', JSON.stringify(geo.features[0].properties));
+    console.log('geoKey used:', geoKey);
+    console.log('valueMap keys (first 3):', Object.keys(valueMap).slice(0,3));
+  }
+
+  // ── Header card inside SVG (top-left) — always appears in PNG export ──
+  const headerG = svg.append('g').attr('transform', 'translate(12, 10)');
+  // Background pill
+  headerG.append('rect')
+    .attr('width', Math.min(W - 24, 520)).attr('height', 56)
+    .attr('fill', '#f0f5ff').attr('stroke', '#c7d9f5').attr('stroke-width', 1).attr('rx', 8);
+  // Indicator name (truncated)
+  const indShort = ind.length > 55 ? ind.slice(0, 54) + '…' : ind;
+  headerG.append('text')
+    .attr('x', 10).attr('y', 18)
+    .attr('font-size', '11').attr('font-weight', '700')
+    .attr('font-family', 'system-ui,sans-serif').attr('fill', '#1a1a1a')
+    .text(indShort);
+  // Direction pill text
+  const dirTxt = dir === 'Higher is better' ? '↑ Higher is better' : '↓ Lower is better';
+  const dirFill = dir === 'Higher is better' ? '#065f46' : '#991b1b';
+  headerG.append('text')
+    .attr('x', 10).attr('y', 32)
+    .attr('font-size', '9').attr('font-weight', '600')
+    .attr('font-family', 'system-ui,sans-serif').attr('fill', dirFill)
+    .text(dirTxt);
+  // Round + mean + SD
+  headerG.append('text')
+    .attr('x', 10).attr('y', 48)
+    .attr('font-size', '9').attr('font-family', 'system-ui,sans-serif').attr('fill', '#6b7280')
+    .text(`${round} · Mean ${mean.toFixed(1)} · SD ${sd.toFixed(1)}`);
+  // Reference value (top-right of card)
+  if(refValue != null){
+    const cardW = Math.min(W - 24, 520);
+    headerG.append('text')
+      .attr('x', cardW - 10).attr('y', 24)
+      .attr('text-anchor', 'end')
+      .attr('font-size', '22').attr('font-weight', '700')
+      .attr('font-family', 'system-ui,sans-serif').attr('fill', '#1a3a5c')
+      .text(refValue);
+    headerG.append('text')
+      .attr('x', cardW - 10).attr('y', 40)
+      .attr('text-anchor', 'end')
+      .attr('font-size', '9').attr('font-weight', '600')
+      .attr('font-family', 'system-ui,sans-serif').attr('fill', '#374151')
+      .text(refLabel);
+  }
+
+  const g = svg.append('g');
+
+  // Draw features
+  g.selectAll('path')
+    .data(geo.features)
+    .enter().append('path')
+    .attr('d', path)
+    .attr('fill', d => {
+      const name = d.properties[geoKey];
+      return getColour(valueMap[name]);
+    })
+    .attr('stroke', '#fff')
+    .attr('stroke-width', type === 'states' ? 1 : 0.4)
+    .on('mousemove', function(event, d){
+      const name = d.properties[geoKey];
+      const v = valueMap[name];
+      tooltip.style.display = 'block';
+      tooltip.style.left = (event.clientX + 14) + 'px';
+      tooltip.style.top  = (event.clientY - 28) + 'px';
+      tooltip.innerHTML  = `<strong>${name || 'Unknown'}</strong><br>${v != null ? v : 'No data'}`;
+    })
+    .on('mouseleave', () => { tooltip.style.display = 'none'; });
+
+  // Labels with collision suppression — greedy bbox overlap check
+  if(showLabels){
+    const isStates = (type === 'states');
+    const minArea  = isStates ? 800  : 400;   // px² threshold to attempt a label
+    const fs       = isStates ? 8    : 7;     // font-size in px
+    const lineH    = fs * 1.3;
+    const charW    = fs * 0.55;               // approx char width
+
+    // Build candidate list sorted by area desc (bigger features label first)
+    const candidates = geo.features.map(d => {
+      const c    = path.centroid(d);
+      const area = path.area(d);
+      const name = d.properties[geoKey] || '';
+      const v    = valueMap[name];
+      return { d, c, area, name, v };
+    })
+    .filter(c => !isNaN(c.c[0]) && c.area >= minArea)
+    .sort((a, b) => b.area - a.area);
+
+    // Greedy placement: keep track of placed bboxes, skip if overlap
+    const placed = []; // [{x1,y1,x2,y2}]
+    function overlaps(x1,y1,x2,y2){
+      return placed.some(p =>
+        x1 < p.x2+2 && x2 > p.x1-2 && y1 < p.y2+2 && y2 > p.y1-2
+      );
+    }
+
+    const labelG = g.append('g').attr('pointer-events','none');
+    candidates.forEach(({c, name, v, area}) => {
+      const shortName = name.length > 13 ? name.slice(0,12)+'…' : name;
+      const valStr    = v != null ? String(v) : '';
+      // Estimate bbox of two-line label
+      const textW = Math.max(shortName.length, valStr.length) * charW;
+      const textH = lineH * 2;
+      const x1 = c[0] - textW/2, y1 = c[1] - textH/2;
+      const x2 = c[0] + textW/2, y2 = c[1] + textH/2;
+      if(overlaps(x1, y1, x2, y2)) return; // skip — would overlap
+      placed.push({x1, y1, x2, y2});
+
+      const txt = labelG.append('text')
+        .attr('transform', `translate(${c})`)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-family', 'system-ui,sans-serif');
+
+      txt.append('tspan')
+        .attr('x', 0).attr('dy', '-0.5em')
+        .attr('font-size', fs).attr('font-weight', '600').attr('fill', '#fff')
+        .text(shortName);
+      txt.append('tspan')
+        .attr('x', 0).attr('dy', `${lineH}`)
+        .attr('font-size', fs - 1).attr('fill', '#fff').attr('opacity', '0.9')
+        .text(valStr);
+    });
+  }
+
+  // Zoom & pan
+  const zoom = d3.zoom().scaleExtent([1, 12]).on('zoom', e => g.attr('transform', e.transform));
+  svg.call(zoom);
+
+  // Legend
+  const good = dir === 'Higher is better';
+  const legData = [
+    { colour: CHORO_GREEN, label: good ? `High (≥ ${(mean+sd).toFixed(1)})` : `Low (≤ ${(mean-sd).toFixed(1)})`,  desc: 'Best performers'  },
+    { colour: CHORO_AMBER, label: `Mid (${low.toFixed(1)} – ${high.toFixed(1)})`,                                        desc: 'Within 1 SD of mean' },
+    { colour: CHORO_RED,   label: good ? `Low (≤ ${(mean-sd).toFixed(1)})` : `High (≥ ${(mean+sd).toFixed(1)})`,   desc: 'Worst performers' },
+    { colour: CHORO_NODATA,label: 'No data', desc: '' },
+  ];
+  // HTML legend (visible on screen)
+  const legDiv = document.getElementById('s4_legend');
+  legDiv.style.display = 'flex';
+  legDiv.innerHTML = '<span class="legend-title">Legend</span>' +
+    legData.map(l => `<div class="legend-item"><div class="legend-swatch" style="background:${l.colour}"></div><span><strong>${l.label}</strong>${l.desc?' · '+l.desc:''}</span></div>`).join('');
+  // SVG legend — two rows of 2 so it never overflows
+  const legItemW = Math.floor((W - 30) / 2);
+  const legRows  = [[legData[0], legData[1]], [legData[2], legData[3]]];
+  const legStartY = H - 62;
+  const legG = svg.append('g').attr('transform', `translate(10,${legStartY})`);
+  legG.append('rect').attr('x',-4).attr('y',-4).attr('width', legItemW * 2 + 8).attr('height', 40)
+    .attr('fill','#ffffff').attr('fill-opacity','0.92').attr('rx',4);
+  legRows.forEach((row, rowIdx) => {
+    row.forEach((l, colIdx) => {
+      if(!l) return;
+      const lx = colIdx * legItemW;
+      const ly = rowIdx * 18;
+      legG.append('rect').attr('x', lx).attr('y', ly).attr('width', 11).attr('height', 11)
+        .attr('fill', l.colour).attr('rx', 2);
+      const txt = l.label + (l.desc ? ' · ' + l.desc : '');
+      legG.append('text').attr('x', lx + 15).attr('y', ly + 9)
+        .attr('font-size', '8.5').attr('font-family', 'system-ui,sans-serif').attr('fill', '#222')
+        .text(txt.length > 32 ? txt.slice(0,31)+'…' : txt);
+    });
+  });
+
+  // Clear HTML badge — title/ref/stats now embedded in SVG for PNG capture
+  document.getElementById('s4_badge').innerHTML = '';
+}
+
+function s4_dlCSV(){
+  if(!s4Rows.length){ alert('Generate a map first.'); return; }
+  dlCSV(s4Rows, 'choropleth_' + val('s4_ind').replace(/\s+/g,'_') + '.csv');
+}
+
+function s4_dlPNG(){
+  if(!s4SvgEl){ alert('Generate a map first.'); return; }
+  const svgClone = s4SvgEl.cloneNode(true);
+  const W = parseInt(s4SvgEl.getAttribute('width'))  || s4SvgEl.getBoundingClientRect().width  || 800;
+  const H = parseInt(s4SvgEl.getAttribute('height')) || s4SvgEl.getBoundingClientRect().height || 550;
+  svgClone.setAttribute('width',  W);
+  svgClone.setAttribute('height', H);
+  svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  // Remove zoom transform so export is at default view
+  const mainG = svgClone.querySelector('g');
+  if(mainG) mainG.removeAttribute('transform');
+  // White background
+  const bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+  bg.setAttribute('width', W); bg.setAttribute('height', H); bg.setAttribute('fill','#ffffff');
+  svgClone.insertBefore(bg, svgClone.firstChild);
+  const svgStr = new XMLSerializer().serializeToString(svgClone);
+  const scale  = 2;
+  const canvas  = document.createElement('canvas');
+  canvas.width  = W * scale;
+  canvas.height = H * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  const img = new Image();
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0, W, H);
+    const a = document.createElement('a');
+    a.download = 'choropleth_' + val('s4_ind').replace(/[^A-Za-z0-9]/g,'_').slice(0,40) + '.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  };
+  img.onerror = () => alert('PNG export failed — try a different browser.');
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+}
+
+
+init();
+</script>
+</body>
+</html>
