@@ -644,30 +644,32 @@ async function s4_apply(){
     // D3 Mercator internally uses scale = R (earth radius in pixels) where
     // x = scale * (lng_rad + translate[0]) and y = scale * (-mercLat + translate[1])
     // We want India's bbox [68.19E-97.42E, 6.76N-37.08N] to fill the available space.
+    // D3 Mercator projection formula:
+    //   x_pixel = (lng_normalised + translate[0]) * scale * 2π
+    //   y_pixel = (-mercLat_normalised + translate[1]) * scale * 2π
+    // where lng_normalised = lng_rad / (2π) and mercLat_normalised = mercLat / (2π)
+    // So: translate[0] = pixCX/(scale*2π) - lng_norm_centre
+    //     translate[1] = pixCY/(scale*2π) + mercLat_norm_centre
     const toRad = d => d * Math.PI / 180;
     const mercLat = lat => Math.log(Math.tan(Math.PI/4 + toRad(lat)/2));
-    // Mercator coordinates of India's corners
-    const xMin = toRad(68.19),  xMax = toRad(97.42);
-    const yMin = mercLat(6.76), yMax = mercLat(37.08);
+    const TWO_PI = 2 * Math.PI;
+    // Normalised Mercator coordinates (divided by 2π as D3 uses internally)
+    const xMinN = toRad(68.19) / TWO_PI, xMaxN = toRad(97.42) / TWO_PI;
+    const yMinN = mercLat(6.76) / TWO_PI, yMaxN = mercLat(37.08) / TWO_PI;
     const availW = W - padL - padR;
     const availH = H - padTop - padBot;
-    // Scale in pixels per radian — fit both dimensions, keep 92% to add padding
-    const scaleRad = Math.min(availW / (xMax - xMin), availH / (yMax - yMin)) * 0.92;
-    // D3's scale parameter = scaleRad / (2*PI)
-    const d3scale = scaleRad / (2 * Math.PI);
-    // Centre of India in Mercator space
-    const cLng = (xMin + xMax) / 2;
-    const cLat = (yMin + yMax) / 2;
-    // D3 Mercator: x = scale*(2PI)*(lng_rad) + tX  → tX = pixelCentreX - scaleRad*cLng
-    // D3 Mercator: y = -scale*(2PI)*(mercLat) + tY → tY = pixelCentreY + scaleRad*cLat
-    // pixel centre of the available drawing area (below header, above legend)
+    // D3 scale = pixels per normalised unit
+    const d3scale = Math.min(availW / (xMaxN - xMinN), availH / (yMaxN - yMinN)) * 0.92;
+    // Centre in normalised units
+    const cX = (xMinN + xMaxN) / 2;
+    const cY = (yMinN + yMaxN) / 2;
+    // Pixel centre of drawing area
     const pixCX = padL + availW / 2;
     const pixCY = padTop + availH / 2;
-    const tX = pixCX - scaleRad * cLng;
-    const tY = pixCY + scaleRad * cLat;
+    // Solve for translate
+    const tX = pixCX / d3scale - cX;
+    const tY = pixCY / d3scale + cY;
     projection.scale(d3scale).translate([tX, tY]);
-    console.log('India proj: W='+W+' H='+H+' scale='+d3scale.toFixed(1)+' tX='+tX.toFixed(1)+' tY='+tY.toFixed(1));
-    console.log('India centre projects to:', projection([82.8, 22]));
   } else {
     projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
   }
