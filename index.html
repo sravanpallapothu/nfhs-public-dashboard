@@ -634,32 +634,34 @@ async function s4_apply(){
   // Reserve space: top 75px for header card, bottom 70px for 2-row legend
   const padL = 20, padR = 20, padTop = 80, padBot = 70;
 
-  // For states: use a synthetic bounding box GeoJSON with India's known
-  // correct coordinates, avoiding geoBounds bug with wrongly-wound rings.
-  // We construct a LineString through the four corners — LineString winding
-  // does not matter for geoBounds, so it always returns correct bounds.
+  // Build projection
+  // For states: manually compute Mercator parameters using India's known bounds.
+  // We avoid fitExtent/geoBounds entirely because wrongly-wound MultiPolygon rings
+  // (a known issue in some Indian shapefiles) cause geoBounds to return [-180,-90],[180,90].
+  // Instead we compute scale and translate directly from Mercator math.
   const projection = d3.geoMercator();
   if(type === 'states'){
-    const indiaBbox = {
-      type: 'Feature',
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [68.19, 6.76], [97.42, 6.76],
-          [97.42, 37.08], [68.19, 37.08],
-          [68.19, 6.76]
-        ]
-      }
-    };
-    // fitExtent on LineString gives correct scale but wrong translate for Mercator
-    // So: use the scale from fitExtent, then manually set center+translate
-    projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], indiaBbox);
-    const indiaScale = projection.scale();
-    // Reset to standard Mercator, apply computed scale, centre on India's midpoint
-    projection
-      .scale(indiaScale)
-      .center([82.8, 22.0])
-      .translate([(padL + W - padR) / 2, (padTop + H - padBot) / 2]);
+    // D3 Mercator internally uses scale = R (earth radius in pixels) where
+    // x = scale * (lng_rad + translate[0]) and y = scale * (-mercLat + translate[1])
+    // We want India's bbox [68.19E-97.42E, 6.76N-37.08N] to fill the available space.
+    const toRad = d => d * Math.PI / 180;
+    const mercLat = lat => Math.log(Math.tan(Math.PI/4 + toRad(lat)/2));
+    // Mercator coordinates of India's corners
+    const xMin = toRad(68.19),  xMax = toRad(97.42);
+    const yMin = mercLat(6.76), yMax = mercLat(37.08);
+    const availW = W - padL - padR;
+    const availH = H - padTop - padBot;
+    // Scale in pixels per radian
+    const scaleRad = Math.min(availW / (xMax - xMin), availH / (yMax - yMin)) * 0.92;
+    // D3 uses scale = scaleRad / (2*PI) as its scale parameter
+    const d3scale = scaleRad / (2 * Math.PI);
+    // Centre of India in Mercator radians
+    const cLng = (xMin + xMax) / 2;
+    const cLat = (yMin + yMax) / 2;
+    // D3 translate maps the centre point to pixel centre of available area
+    const tX = (padL + W - padR) / 2 - scaleRad * cLng;
+    const tY = (padTop + H - padBot) / 2 + scaleRad * cLat;
+    projection.scale(d3scale).translate([tX, tY]);
   } else {
     projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
   }
