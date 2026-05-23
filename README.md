@@ -6,10 +6,11 @@
 
 An interactive, browser-based dashboard for exploring National Family Health Survey (NFHS) data across India — at national, state, and district levels. Built entirely in HTML, CSS, and JavaScript with no backend, no server, and no paid services.
 
-**Live dashboard (Netlify):** [https://nfhs-dashboard.netlify.app](https://nfhs-dashboard.netlify.app)  
-**Repository (GitHub):** [https://sravanpallapothu.github.io/nhfspublicdashboard/](https://sravanpallapothu.github.io/nhfspublicdashboard/)
-**Link to Backend data source for dashboard (extracted from indvidual factsheets using R)**: [https://docs.google.com/spreadsheets/d/1RH9p8c-x-1GWmHf7TmeKNOlOIdTTjZms1O8DdhcH8Ug/edit?gid=836994213#gid=836994213]
-(https://docs.google.com/spreadsheets/d/1RH9p8c-x-1GWmHf7TmeKNOlOIdTTjZms1O8DdhcH8Ug/edit?gid=836994213#gid=836994213)
+- Live dashboard (Netlify): [nfhs-dashboard.netlify.app](https://nfhs-dashboard.netlify.app)
+- Repository (GitHub): [sravanpallapothu.github.io/nhfspublicdashboard](https://sravanpallapothu.github.io/nhfspublicdashboard/)
+- Backend data source: [Google Sheets](https://docs.google.com/spreadsheets/d/1RH9p8c-x-1GWmHf7TmeKNOlOIdTTjZms1O8DdhcH8Ug/edit?gid=836994213#gid=836994213)
+
+- Google sheet is generated using an R Script to extract indicators from individual NFHS factsheets (see below)
 ---
 
 ## Purpose
