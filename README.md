@@ -8,8 +8,8 @@ An interactive, browser-based dashboard for exploring National Family Health Sur
 
 **Live dashboard (Netlify):** [https://nfhs-dashboard.netlify.app](https://nfhs-dashboard.netlify.app)  
 **Repository (GitHub):** [https://sravanpallapothu.github.io/nhfspublicdashboard/](https://sravanpallapothu.github.io/nhfspublicdashboard/)
-**Link to Backend data source for dashboard (extracted from indvidual factsheets using R): https://docs.google.com/spreadsheets/d/1RH9p8c-x-1GWmHf7TmeKNOlOIdTTjZms1O8DdhcH8Ug/edit?gid=836994213#gid=836994213
-
+**Link to Backend data source for dashboard (extracted from indvidual factsheets using R)**: [https://docs.google.com/spreadsheets/d/1RH9p8c-x-1GWmHf7TmeKNOlOIdTTjZms1O8DdhcH8Ug/edit?gid=836994213#gid=836994213]
+(https://docs.google.com/spreadsheets/d/1RH9p8c-x-1GWmHf7TmeKNOlOIdTTjZms1O8DdhcH8Ug/edit?gid=836994213#gid=836994213)
 ---
 
 ## Purpose
