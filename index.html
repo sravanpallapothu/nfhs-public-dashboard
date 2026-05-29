@@ -302,6 +302,7 @@ function uniq(a){ return [...new Set(a)].filter(Boolean).sort(); }
 function val(id){ return document.getElementById(id).value; }
 function setOpts(id,arr,ph){ document.getElementById(id).innerHTML=(ph?`<option value="">— ${ph} —</option>`:'')+arr.map(v=>`<option value="${v}">${v}</option>`).join(''); }
 function buildRoundSelect(id){ setOpts(id,uniq(allRows.map(r=>r.Round))); }
+function buildRoundSelectState(id){ setOpts(id,uniq(allRows.filter(r=>r['Geo Level']!=='District').map(r=>r.Round))); }
 function onDomain(p){ const d=val(p+'_domain'); setOpts(p+'_ind',uniq(allRows.filter(r=>!d||r.Domain===d).map(r=>r.Indicator)),'Select indicator'); document.getElementById(p+'_dir').innerHTML=''; }
 function showScreen(id,el){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); document.getElementById(id).classList.add('active'); el.classList.add('active'); }
 function getDirection(ind){ const r=allRows.find(x=>x.Indicator===ind); return r?r.Direction:null; }
@@ -426,7 +427,7 @@ function s2_apply(){
 
 // ── SCREEN 3 ──────────────────────────────────────────────────────
 function s3_onDomain(){ onDomain('s3'); }
-function s3_onLevel(){ const lvl=val('s3_level'); const sg=document.getElementById('s3_stateGroup'); sg.style.display=lvl==='State'?'flex':'none'; sg.style.flexDirection='column'; sg.style.gap='5px'; }
+function s3_onLevel(){ const lvl=val('s3_level'); const sg=document.getElementById('s3_stateGroup'); sg.style.display=lvl==='State'?'flex':'none'; sg.style.flexDirection='column'; sg.style.gap='5px'; if(lvl==='State') buildRoundSelectState('s3_round'); else buildRoundSelect('s3_round'); }
 
 let s3Rows=[];
 function s3_apply(){
@@ -503,6 +504,7 @@ function s4_onType(){
   sg.style.display = t === 'districts_state' ? 'flex' : 'none';
   sg.style.flexDirection = 'column';
   sg.style.gap = '5px';
+  if(t === 'states') buildRoundSelect('s4_round'); else buildRoundSelectState('s4_round');
 }
 
 async function loadGeoJSON(url){
