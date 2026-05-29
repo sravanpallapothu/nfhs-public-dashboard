@@ -272,6 +272,11 @@ async function init(){
     const csv = await r.text();
     allRows = Papa.parse(csv,{header:true,skipEmptyLines:true,dynamicTyping:true}).data;
     if(allRows.length === 0) throw new Error("CSV parsed but no rows found");
+    // Normalise indicator names: strip footnote numbers sitting between ) and (
+    // e.g. "stunted (height-for-age)18 (%)" → "stunted (height-for-age) (%)"
+    // These footnote numbers differ across rounds for the same indicator,
+    // breaking cross-round joins in the temporal trend.
+    allRows = allRows.map(r => ({...r, Indicator: r.Indicator.replace(/\)\d{1,2}(?=\s*\()/g, ')')}));
   } catch(e) {
     document.body.innerHTML = `<div style="padding:40px;font-family:sans-serif;color:#c0392b">
       <h2>⚠️ Could not load data from Google Sheets</h2>
@@ -422,7 +427,7 @@ function s2_apply(){
       <button class="btn btn-secondary btn-sm" onclick="dlCSV(s2Rows,'trend_${slug}.csv')">⬇ Download data (CSV)</button>
     </div>`;
   if(s2Chart){ s2Chart.destroy(); s2Chart=null; }
-  s2Chart=new Chart(document.getElementById('s2chart').getContext('2d'),{type:'line',data:{labels:rounds,datasets},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:12}}},tooltip:{mode:'index',intersect:false}},scales:{x:{grid:{display:false},ticks:{font:{size:12}}},y:{grid:{color:'#f3f4f6'},ticks:{font:{size:12}},beginAtZero:false}}}});
+  s2Chart=new Chart(document.getElementById('s2chart').getContext('2d'),{type:'line',data:{labels:rounds,datasets},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:12}}},tooltip:{mode:'index',intersect:false}},scales:{x:{grid:{display:false},ticks:{font:{size:12}}},y:{grid:{color:'#f3f4f6'},ticks:{font:{size:12}},beginAtZero:true}}}});
 }
 
 // ── SCREEN 3 ──────────────────────────────────────────────────────
