@@ -512,11 +512,48 @@ function s4_onType(){
   if(t === 'states') buildRoundSelect('s4_round'); else buildRoundSelectState('s4_round');
 }
 
+// ── Winding-order fix (RFC 7946) ──
+// Many Indian shapefiles export with clockwise exterior rings. D3 uses spherical
+// geometry, so a clockwise exterior ring is read as "everything OUTSIDE this shape"
+// — i.e. almost the whole globe. That makes fitExtent/geoBounds blow out (collapsing
+// the map to a point) and inverts fills. RFC 7946 requires exterior rings CCW and
+// holes CW. For India's extent (no poles, no antimeridian) planar shoelace winding
+// matches spherical, so we rewind using a simple signed-area test.
+function ringIsClockwise(ring){
+  let sum = 0;
+  for(let i = 0; i < ring.length - 1; i++){
+    const [x1, y1] = ring[i], [x2, y2] = ring[i + 1];
+    sum += (x2 - x1) * (y2 + y1);   // > 0 ⇒ clockwise
+  }
+  return sum > 0;
+}
+function rewindRings(rings){
+  // rings[0] = exterior (want CCW), rings[1..] = holes (want CW)
+  rings.forEach((ring, i) => {
+    const cw = ringIsClockwise(ring);
+    if((i === 0 && cw) || (i > 0 && !cw)) ring.reverse();
+  });
+}
+function rewindGeo(fc){
+  if(!fc || !fc.features) return fc;
+  for(const f of fc.features){
+    const g = f.geometry;
+    if(!g) continue;
+    if(g.type === 'Polygon'){
+      rewindRings(g.coordinates);
+    } else if(g.type === 'MultiPolygon'){
+      g.coordinates.forEach(poly => rewindRings(poly));
+    }
+  }
+  return fc;
+}
+
 async function loadGeoJSON(url){
   if(s4GeoCache[url]) return s4GeoCache[url];
   const r = await fetch(url);
   if(!r.ok) throw new Error(`GeoJSON not found: ${url}`);
   const data = await r.json();
+  rewindGeo(data);              // normalise winding before caching/projecting
   s4GeoCache[url] = data;
   return data;
 }
@@ -641,26 +678,11 @@ async function s4_apply(){
   // Reserve space: top 75px for header card, bottom 70px for 2-row legend
   const padL = 20, padR = 20, padTop = 80, padBot = 70;
 
-  // Build projection
-  // For states: manually compute Mercator parameters using India's known bounds.
-  // We avoid fitExtent/geoBounds entirely because wrongly-wound MultiPolygon rings
-  // (a known issue in some Indian shapefiles) cause geoBounds to return [-180,-90],[180,90].
-  // Instead we compute scale and translate directly from Mercator math.
+  // Build projection.
+  // Geometry winding is normalised in loadGeoJSON (rewindGeo), so D3's spherical
+  // bounds are reliable and fitExtent works correctly for every map type.
   const projection = d3.geoMercator();
-  if(type === 'states'){
-    // D3 Mercator internally uses scale = R (earth radius in pixels) where
-    // x = scale * (lng_rad + translate[0]) and y = scale * (-mercLat + translate[1])
-    // We want India's bbox [68.19E-97.42E, 6.76N-37.08N] to fill the available space.
-    // Use a reference projection fitted to a known-good bounding box
-    // then extract scale/translate — avoids geoBounds winding bug entirely.
-    // We use a MultiPoint geometry (winding-neutral) of India's four corners.
-    // New shapefile has correct winding — fitExtent works reliably
-    const availW = W - padL - padR;
-    const availH = H - padTop - padBot;
-    projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
-  } else {
-    projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
-  }
+  projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
   const path = d3.geoPath().projection(projection);
 
   // Debug: print first feature properties to check key names
