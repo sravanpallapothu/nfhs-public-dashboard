@@ -512,48 +512,11 @@ function s4_onType(){
   if(t === 'states') buildRoundSelect('s4_round'); else buildRoundSelectState('s4_round');
 }
 
-// ── Winding-order fix (RFC 7946) ──
-// Many Indian shapefiles export with clockwise exterior rings. D3 uses spherical
-// geometry, so a clockwise exterior ring is read as "everything OUTSIDE this shape"
-// — i.e. almost the whole globe. That makes fitExtent/geoBounds blow out (collapsing
-// the map to a point) and inverts fills. RFC 7946 requires exterior rings CCW and
-// holes CW. For India's extent (no poles, no antimeridian) planar shoelace winding
-// matches spherical, so we rewind using a simple signed-area test.
-function ringIsClockwise(ring){
-  let sum = 0;
-  for(let i = 0; i < ring.length - 1; i++){
-    const [x1, y1] = ring[i], [x2, y2] = ring[i + 1];
-    sum += (x2 - x1) * (y2 + y1);   // > 0 ⇒ clockwise
-  }
-  return sum > 0;
-}
-function rewindRings(rings){
-  // rings[0] = exterior (want CCW), rings[1..] = holes (want CW)
-  rings.forEach((ring, i) => {
-    const cw = ringIsClockwise(ring);
-    if((i === 0 && cw) || (i > 0 && !cw)) ring.reverse();
-  });
-}
-function rewindGeo(fc){
-  if(!fc || !fc.features) return fc;
-  for(const f of fc.features){
-    const g = f.geometry;
-    if(!g) continue;
-    if(g.type === 'Polygon'){
-      rewindRings(g.coordinates);
-    } else if(g.type === 'MultiPolygon'){
-      g.coordinates.forEach(poly => rewindRings(poly));
-    }
-  }
-  return fc;
-}
-
 async function loadGeoJSON(url){
   if(s4GeoCache[url]) return s4GeoCache[url];
   const r = await fetch(url);
   if(!r.ok) throw new Error(`GeoJSON not found: ${url}`);
   const data = await r.json();
-  rewindGeo(data);              // normalise winding before caching/projecting
   s4GeoCache[url] = data;
   return data;
 }
@@ -678,11 +641,63 @@ async function s4_apply(){
   // Reserve space: top 75px for header card, bottom 70px for 2-row legend
   const padL = 20, padR = 20, padTop = 80, padBot = 70;
 
-  // Build projection.
-  // Geometry winding is normalised in loadGeoJSON (rewindGeo), so D3's spherical
-  // bounds are reliable and fitExtent works correctly for every map type.
+  // Build projection
   const projection = d3.geoMercator();
-  projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
+  if(type === 'states'){
+    // ── India → States fix ──
+    // The state GeoJSON has two problems that D3's spherical geometry trips on:
+    //  (1) Mixed winding: 11 state polygons (Delhi, Puducherry, Ladakh, J&K,
+    //      Uttarakhand, Nagaland, Mizoram) have inverted exterior rings, which D3
+    //      reads as "everything outside the shape" — so they fill the whole map and
+    //      the data join shows grey.
+    //  (2) The 222-island Andaman & Nicobar MultiPolygon makes D3's spherical
+    //      geoBounds blow out to the full globe, so fitExtent(geo) collapses the
+    //      whole map to a point.
+    // Fix (1): reverse any exterior ring whose D3 spherical area exceeds a hemisphere
+    //          (unambiguously inverted). Correctly-wound rings are tiny and untouched.
+    // Fix (2): fit to a PLANAR bounding box (computed from raw coordinates) passed as
+    //          a winding-neutral MultiPoint — immune to the spherical-bounds blowout.
+    const TWO_PI = 2 * Math.PI;
+    let flipped = 0;
+    for(const f of geo.features){
+      const gm = f && f.geometry; if(!gm) continue;
+      const polys = gm.type === 'MultiPolygon' ? gm.coordinates
+                  : gm.type === 'Polygon'      ? [gm.coordinates] : [];
+      for(const poly of polys){
+        try {
+          if(!poly || !poly[0] || poly[0].length < 4) continue;
+          if(d3.geoArea({ type: 'Polygon', coordinates: [poly[0]] }) > TWO_PI){
+            poly[0].reverse(); flipped++;
+          }
+        } catch(e){ /* leave untouched on error */ }
+      }
+    }
+    // Planar bounding box from raw coordinates
+    let xmin = Infinity, ymin = Infinity, xmax = -Infinity, ymax = -Infinity;
+    for(const f of geo.features){
+      const gm = f && f.geometry; if(!gm) continue;
+      const polys = gm.type === 'MultiPolygon' ? gm.coordinates
+                  : gm.type === 'Polygon'      ? [gm.coordinates] : [];
+      for(const poly of polys) for(const ring of poly) for(const p of ring){
+        if(p[0] < xmin) xmin = p[0]; if(p[0] > xmax) xmax = p[0];
+        if(p[1] < ymin) ymin = p[1]; if(p[1] > ymax) ymax = p[1];
+      }
+    }
+    // Fallback to India's extent if bounds are somehow degenerate
+    if(!(isFinite(xmin) && (xmax - xmin) > 1e-6 && (ymax - ymin) > 1e-6)){
+      xmin = 68.12; ymin = 6.75; xmax = 97.41; ymax = 37.10;
+    }
+    const fitObj = { type: 'MultiPoint', coordinates: [
+      [xmin, ymin], [xmax, ymin], [xmax, ymax], [xmin, ymax]
+    ]};
+    projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], fitObj);
+    console.log('[NFHS states fix v3] winding flips:', flipped,
+                '| planar bounds:', [xmin, ymin, xmax, ymax].map(v => +v.toFixed(2)),
+                '| scale:', Math.round(projection.scale()));
+  } else {
+    // Districts / single-state — unchanged
+    projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
+  }
   const path = d3.geoPath().projection(projection);
 
   // Debug: print first feature properties to check key names
