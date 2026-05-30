@@ -543,6 +543,45 @@ async function s4_apply(){
   // Build value lookup
   // valueMap: Geography -> Value (for colouring)
   // parentMap: Geography -> Parent State (for CSV, districts_national only)
+  //
+  // Name reconciliation: the GeoJSON spellings don't always match the data's
+  // Geography names (e.g. GeoJSON "Tamilnadu"/"Telengana" vs data "Tamil
+  // Nadu"/"Telangana"). resolveName() maps a GeoJSON feature name to the matching
+  // data key. It first tries an explicit alias, then a normalised match (lowercase,
+  // strip spaces/punctuation), so most spelling variants reconcile automatically.
+  const NAME_ALIASES = {
+    // GeoJSON spelling (lowercased key) → exact sheet spelling
+    'andaman & nicobar':                            'Andaman & Nicobar Islands',
+    'chhattishgarh':                                'Chhattisgarh',
+    'daman and diu and dadra and nagar haveli':     'Dadra & Nagar Haveli and Daman & Diu',
+    'delhi':                                        'NCT Delhi',
+    'telengana':                                    'Telangana'
+  };
+  const norm = s => String(s || '').toLowerCase()
+    .replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+  let _normVal = null;   // norm(key) → value
+  let _normKey = null;   // norm(key) → canonical key
+  function buildNorm(map){
+    if(!_normVal){ _normVal = {}; _normKey = {};
+      for(const k in map){ const n=norm(k); _normVal[n]=map[k]; _normKey[n]=k; } }
+  }
+  function resolveValue(map, featName){
+    if(map[featName] != null) return map[featName];
+    const alias = NAME_ALIASES[String(featName||'').toLowerCase()];
+    if(alias && map[alias] != null) return map[alias];
+    buildNorm(map);
+    const v = _normVal[norm(featName)];
+    return v != null ? v : undefined;
+  }
+  function resolveDisplayName(map, featName){
+    if(map[featName] != null) return featName;
+    const alias = NAME_ALIASES[String(featName||'').toLowerCase()];
+    if(alias && map[alias] != null) return alias;
+    buildNorm(map);
+    const k = _normKey[norm(featName)];
+    return k != null ? k : featName;
+  }
+
   let geoKey, geoLevel, valueMap = {}, parentMap = {}, url, refLabel = '', refValue = null;
   if(type === 'states'){
     geoKey = 'ST_NM'; geoLevel = 'State';
@@ -694,6 +733,18 @@ async function s4_apply(){
     console.log('[NFHS states fix v3] winding flips:', flipped,
                 '| planar bounds:', [xmin, ymin, xmax, ymax].map(v => +v.toFixed(2)),
                 '| scale:', Math.round(projection.scale()));
+    // Diagnostic: report any GeoJSON states that didn't resolve to a data value,
+    // so spelling mismatches are easy to spot in the console.
+    try {
+      const unresolved = geo.features
+        .map(f => f.properties[geoKey])
+        .filter(n => resolveValue(valueMap, n) == null);
+      if(unresolved.length){
+        console.warn('[NFHS] states with no data match (check spelling/alias):', unresolved);
+      } else {
+        console.log('[NFHS] all state polygons matched to data ✓');
+      }
+    } catch(e){}
   } else {
     // Districts / single-state — unchanged
     projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
@@ -759,13 +810,14 @@ async function s4_apply(){
     .attr('d', path)
     .attr('fill', d => {
       const name = d.properties[geoKey];
-      return getColour(valueMap[name]);
+      return getColour(resolveValue(valueMap, name));
     })
     .attr('stroke', '#fff')
     .attr('stroke-width', type === 'states' ? 1 : 0.4)
     .on('mousemove', function(event, d){
-      const name = d.properties[geoKey];
-      const v = valueMap[name];
+      const rawName = d.properties[geoKey];
+      const name = resolveDisplayName(valueMap, rawName);
+      const v = resolveValue(valueMap, rawName);
       tooltip.style.display = 'block';
       tooltip.style.left = (event.clientX + 14) + 'px';
       tooltip.style.top  = (event.clientY - 28) + 'px';
@@ -785,8 +837,8 @@ async function s4_apply(){
     const candidates = geo.features.map(d => {
       const c    = path.centroid(d);
       const area = path.area(d);
-      const name = d.properties[geoKey] || '';
-      const v    = valueMap[name];
+      const name = resolveDisplayName(valueMap, d.properties[geoKey] || '');
+      const v    = resolveValue(valueMap, d.properties[geoKey] || '');
       return { d, c, area, name, v };
     })
     .filter(c => !isNaN(c.c[0]) && c.area >= minArea)
@@ -802,21 +854,37 @@ async function s4_apply(){
 
     const labelG = g.append('g').attr('pointer-events','none');
     candidates.forEach(({c, name, v, area}) => {
+      // Only label features that actually have data (avoids labelling grey/No-data
+      // polygons and reduces clutter).
+      if(v == null) return;
+
       const shortName = name.length > 13 ? name.slice(0,12)+'…' : name;
-      const valStr    = v != null ? String(v) : '';
+      const valStr    = String(v);
       // Estimate bbox of two-line label
       const textW = Math.max(shortName.length, valStr.length) * charW;
       const textH = lineH * 2;
-      const x1 = c[0] - textW/2, y1 = c[1] - textH/2;
-      const x2 = c[0] + textW/2, y2 = c[1] + textH/2;
+
+      // Clamp the label centre so the whole bbox stays inside the SVG viewport,
+      // with a small margin. This stops edge features (and any odd centroid) from
+      // pushing text off the chart.
+      const margin = 3;
+      const cx = Math.max(textW/2 + margin, Math.min(W - textW/2 - margin, c[0]));
+      const cy = Math.max(textH/2 + margin + padTop*0, Math.min(H - textH/2 - margin, c[1]));
+
+      const x1 = cx - textW/2, y1 = cy - textH/2;
+      const x2 = cx + textW/2, y2 = cy + textH/2;
       if(overlaps(x1, y1, x2, y2)) return; // skip — would overlap
       placed.push({x1, y1, x2, y2});
 
       const txt = labelG.append('text')
-        .attr('transform', `translate(${c})`)
+        .attr('transform', `translate(${cx},${cy})`)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('font-family', 'system-ui,sans-serif');
+        .attr('font-family', 'system-ui,sans-serif')
+        .attr('paint-order', 'stroke')
+        .attr('stroke', 'rgba(0,0,0,0.45)')
+        .attr('stroke-width', 2)
+        .attr('stroke-linejoin', 'round');
 
       txt.append('tspan')
         .attr('x', 0).attr('dy', '-0.5em')
@@ -824,7 +892,7 @@ async function s4_apply(){
         .text(shortName);
       txt.append('tspan')
         .attr('x', 0).attr('dy', `${lineH}`)
-        .attr('font-size', fs - 1).attr('fill', '#fff').attr('opacity', '0.9')
+        .attr('font-size', fs - 1).attr('fill', '#fff').attr('opacity', '0.95')
         .text(valStr);
     });
   }
