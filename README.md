@@ -6,7 +6,7 @@
 
 An interactive, browser-based dashboard for exploring National Family Health Survey (NFHS) data across India — at national, state, and district levels. Built entirely in HTML, CSS, and JavaScript with no backend, no server, and no paid services.
 
-- Live dashboard (Netlify): [nfhs-dashboard.netlify.app](https://nfhs-dashboard.netlify.app)
+- Live dashboard (Netlify): [nfhs-dashboard.netlify.app](https://nfhs-dashboard.netlify.app) --Currently Inactive 
 - Repository (GitHub):  [sravanpallapothu.github.io/nfhs-public-dashboard](https://sravanpallapothu.github.io/nfhs-public-dashboard/)
 - Backend data source: [Google Sheets](https://docs.google.com/spreadsheets/d/1RH9p8c-x-1GWmHf7TmeKNOlOIdTTjZms1O8DdhcH8Ug/edit?gid=836994213#gid=836994213)
 
@@ -275,9 +275,13 @@ GitHub Pages serves static files directly from a GitHub repository.
 
 The R scripts (`1__scrape_state_district_factsheets_from_dhs_website.R`, `2__convert_district_state_factsheets_to_excel.R`, `3_standardizing_names_and_creating_shapefiles.R`) are version-controlled separately and are not required to run the dashboard. PDFs are not stored in this repository — they are available on request, and can also be downloaded directly from [IIPS](http://rchiips.org/nfhs/nfhs5.shtml) using Script 1.
 
+## Changelog
+See [Releases](https://github.com/sravanpallapothu/nfhs-public-dashboard/releases) for a full update history.
+
 ---
 
 ## Data Sources
 
 - **NFHS-5 (2019–21)** and **NFHS-4 (2015–16)** factsheets: [IIPS](http://rchiips.org/nfhs/)
+- **NFHS-6 (2023-24)** factsheets (https://www.nfhsiips.in/nfhsuser/assets/National%20Family%20Health%20Survey%20(NFHS-6)%202023-2024%20Fact%20Sheets.pdf)
 - Ministry of Health and Family Welfare, Government of India
