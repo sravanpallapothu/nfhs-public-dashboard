@@ -568,10 +568,9 @@ async function loadGeoJSON(url){
 }
 
 function getStateFilename(state){
-  // Spaces in state names are kept as-is in the geojson filename
-  // e.g. "Tamil Nadu" -> "Tamil Nadu_fornfhsdashboard.geojson"
-  // Non-space special chars (& / etc) are replaced with _
-  return state.replace(/[^A-Za-z0-9 ]/g, '_') + '_fornfhsdashboard.geojson';
+  // GitHub repo stores state geojson files in UPPERCASE names
+  // e.g. "Jharkhand" -> "JHARKHAND_fornfhsdashboard.geojson"
+  return state.toUpperCase().replace(/[^A-Z0-9 ]/g, '_') + '_fornfhsdashboard.geojson';
 }
 
 async function s4_apply(){
