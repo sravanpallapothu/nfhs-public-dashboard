@@ -272,11 +272,37 @@ async function init(){
     const csv = await r.text();
     allRows = Papa.parse(csv,{header:true,skipEmptyLines:true,dynamicTyping:true}).data;
     if(allRows.length === 0) throw new Error("CSV parsed but no rows found");
-    // Normalise indicator names: strip footnote numbers sitting between ) and (
-    // e.g. "stunted (height-for-age)18 (%)" → "stunted (height-for-age) (%)"
-    // These footnote numbers differ across rounds for the same indicator,
-    // breaking cross-round joins in the temporal trend.
-    allRows = allRows.map(r => ({...r, Indicator: r.Indicator.replace(/\)\d{1,2}(?=\s*\()/g, ')')}));
+    // Normalise indicator names: strip footnote superscript digits that sit right
+    // before a unit parenthetical — whether glued to a closing paren or to a letter.
+    //   "stunted (height-for-age)18 (%)" → "stunted (height-for-age) (%)"
+    //   "...based on recall11 (%)"        → "...based on recall (%)"
+    // These footnote numbers differ across rounds for the same indicator, which
+    // breaks cross-round joins (temporal trend, change arrows) and creates duplicate
+    // dropdown entries. The (?=\s*\() lookahead keeps this safe: only digits sitting
+    // immediately before a "(" are stripped, so values like "B12" or "kg/m2" that
+    // are NOT followed by a parenthetical are left untouched.
+    const _indBefore = new Set(allRows.map(r => r.Indicator)).size;
+    allRows = allRows.map(r => ({
+      ...r,
+      Indicator: String(r.Indicator || '')
+        .replace(/([A-Za-z)])\d{1,3}(?=\s*\()/g, '$1')   // footnote (1–3 digits) before a parenthetical
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+    }));
+    const _indAfter = new Set(allRows.map(r => r.Indicator)).size;
+    console.log(`[NFHS] indicator names normalised: ${_indBefore} → ${_indAfter} unique (${_indBefore - _indAfter} footnote duplicates merged across rounds)`);
+    // Diagnostic: surface indicators that are probably the same but STILL differ as
+    // strings (e.g. footnotes the rule above didn't catch). Grouping key strips all
+    // digits — used only for detection, not matching. Anything listed here is a
+    // candidate for a remaining cross-round mismatch worth reporting.
+    const _byKey = {};
+    allRows.forEach(r => {
+      const k = String(r.Indicator || '').toLowerCase().replace(/\d+/g,'').replace(/\s+/g,' ').trim();
+      (_byKey[k] = _byKey[k] || new Set()).add(r.Indicator);
+    });
+    const _resid = Object.values(_byKey).filter(s => s.size > 1).map(s => [...s]);
+    if(_resid.length) console.warn('[NFHS] possible same-indicator-different-string groups (cross-round mismatch may remain — report these):', _resid);
+    else console.log('[NFHS] no residual cross-round indicator mismatches detected ✓');
   } catch(e) {
     document.body.innerHTML = `<div style="padding:40px;font-family:sans-serif;color:#c0392b">
       <h2>⚠️ Could not load data from Google Sheets</h2>
@@ -546,6 +572,42 @@ async function s4_apply(){
   // Build value lookup
   // valueMap: Geography -> Value (for colouring)
   // parentMap: Geography -> Parent State (for CSV, districts_national only)
+  //
+  // Name reconciliation: GeoJSON spellings don't always match the data's Geography
+  // names (e.g. GeoJSON "Tamilnadu"/"Telengana" vs data "Tamil Nadu"/"Telangana").
+  // resolveValue()/resolveDisplayName() map a GeoJSON feature name to the matching
+  // data key: first an explicit alias, then a normalised match (lowercase, strip
+  // spaces/punctuation), so most spelling variants reconcile automatically.
+  const NAME_ALIASES = {
+    'andaman & nicobar':                            'Andaman & Nicobar Islands',
+    'chhattishgarh':                                'Chhattisgarh',
+    'daman and diu and dadra and nagar haveli':     'Dadra & Nagar Haveli and Daman & Diu',
+    'delhi':                                        'NCT Delhi',
+    'telengana':                                    'Telangana'
+  };
+  const norm = s => String(s || '').toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]/g,'');
+  let _normVal = null, _normKey = null;
+  function buildNorm(map){
+    if(!_normVal){ _normVal = {}; _normKey = {};
+      for(const k in map){ const n = norm(k); _normVal[n] = map[k]; _normKey[n] = k; } }
+  }
+  function resolveValue(map, featName){
+    if(map[featName] != null) return map[featName];
+    const alias = NAME_ALIASES[String(featName||'').toLowerCase()];
+    if(alias && map[alias] != null) return map[alias];
+    buildNorm(map);
+    const v = _normVal[norm(featName)];
+    return v != null ? v : undefined;
+  }
+  function resolveDisplayName(map, featName){
+    if(map[featName] != null) return featName;
+    const alias = NAME_ALIASES[String(featName||'').toLowerCase()];
+    if(alias && map[alias] != null) return alias;
+    buildNorm(map);
+    const k = _normKey[norm(featName)];
+    return k != null ? k : featName;
+  }
+
   let geoKey, geoLevel, valueMap = {}, parentMap = {}, url, refLabel = '', refValue = null;
   if(type === 'states'){
     geoKey = 'ST_NM'; geoLevel = 'State';
@@ -645,23 +707,63 @@ async function s4_apply(){
   const padL = 20, padR = 20, padTop = 80, padBot = 70;
 
   // Build projection
-  // For states: manually compute Mercator parameters using India's known bounds.
-  // We avoid fitExtent/geoBounds entirely because wrongly-wound MultiPolygon rings
-  // (a known issue in some Indian shapefiles) cause geoBounds to return [-180,-90],[180,90].
-  // Instead we compute scale and translate directly from Mercator math.
   const projection = d3.geoMercator();
   if(type === 'states'){
-    // D3 Mercator internally uses scale = R (earth radius in pixels) where
-    // x = scale * (lng_rad + translate[0]) and y = scale * (-mercLat + translate[1])
-    // We want India's bbox [68.19E-97.42E, 6.76N-37.08N] to fill the available space.
-    // Use a reference projection fitted to a known-good bounding box
-    // then extract scale/translate — avoids geoBounds winding bug entirely.
-    // We use a MultiPoint geometry (winding-neutral) of India's four corners.
-    // New shapefile has correct winding — fitExtent works reliably
-    const availW = W - padL - padR;
-    const availH = H - padTop - padBot;
-    projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
+    // ── India → States fix ──
+    // The state GeoJSON has two problems D3's spherical geometry trips on:
+    //  (1) Mixed winding: a handful of state polygons (Delhi, Puducherry, Ladakh,
+    //      J&K, Uttarakhand, Nagaland, Mizoram) have inverted exterior rings, which
+    //      D3 reads as "everything outside the shape" — so they fill the whole map.
+    //  (2) The 222-island Andaman & Nicobar MultiPolygon makes D3's spherical
+    //      geoBounds blow out to the full globe, so fitExtent(geo) collapses the
+    //      whole map to a point.
+    // Fix (1): reverse any exterior ring whose D3 spherical area exceeds a hemisphere
+    //          (unambiguously inverted). Correctly-wound rings are tiny and untouched.
+    // Fix (2): fit to a PLANAR bounding box (raw coordinates) passed as a
+    //          winding-neutral MultiPoint — immune to the spherical-bounds blowout.
+    const TWO_PI = 2 * Math.PI;
+    let flipped = 0;
+    for(const f of geo.features){
+      const gm = f && f.geometry; if(!gm) continue;
+      const polys = gm.type === 'MultiPolygon' ? gm.coordinates
+                  : gm.type === 'Polygon'      ? [gm.coordinates] : [];
+      for(const poly of polys){
+        try {
+          if(!poly || !poly[0] || poly[0].length < 4) continue;
+          if(d3.geoArea({ type: 'Polygon', coordinates: [poly[0]] }) > TWO_PI){
+            poly[0].reverse(); flipped++;
+          }
+        } catch(e){ /* leave untouched on error */ }
+      }
+    }
+    let xmin = Infinity, ymin = Infinity, xmax = -Infinity, ymax = -Infinity;
+    for(const f of geo.features){
+      const gm = f && f.geometry; if(!gm) continue;
+      const polys = gm.type === 'MultiPolygon' ? gm.coordinates
+                  : gm.type === 'Polygon'      ? [gm.coordinates] : [];
+      for(const poly of polys) for(const ring of poly) for(const p of ring){
+        if(p[0] < xmin) xmin = p[0]; if(p[0] > xmax) xmax = p[0];
+        if(p[1] < ymin) ymin = p[1]; if(p[1] > ymax) ymax = p[1];
+      }
+    }
+    if(!(isFinite(xmin) && (xmax - xmin) > 1e-6 && (ymax - ymin) > 1e-6)){
+      xmin = 68.12; ymin = 6.75; xmax = 97.41; ymax = 37.10;  // India fallback
+    }
+    const fitObj = { type: 'MultiPoint', coordinates: [
+      [xmin, ymin], [xmax, ymin], [xmax, ymax], [xmin, ymax]
+    ]};
+    projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], fitObj);
+    console.log('[NFHS states fix] winding flips:', flipped,
+                '| planar bounds:', [xmin, ymin, xmax, ymax].map(v => +v.toFixed(2)),
+                '| scale:', Math.round(projection.scale()));
+    try {
+      const unresolved = geo.features.map(f => f.properties[geoKey])
+        .filter(n => resolveValue(valueMap, n) == null);
+      if(unresolved.length) console.warn('[NFHS] states with no data match (check spelling/alias):', unresolved);
+      else console.log('[NFHS] all state polygons matched to data ✓');
+    } catch(e){}
   } else {
+    // Districts / single-state — unchanged
     projection.fitExtent([[padL, padTop], [W - padR, H - padBot]], geo);
   }
   const path = d3.geoPath().projection(projection);
@@ -725,13 +827,14 @@ async function s4_apply(){
     .attr('d', path)
     .attr('fill', d => {
       const name = d.properties[geoKey];
-      return getColour(valueMap[name]);
+      return getColour(resolveValue(valueMap, name));
     })
     .attr('stroke', '#fff')
     .attr('stroke-width', type === 'states' ? 1 : 0.4)
     .on('mousemove', function(event, d){
-      const name = d.properties[geoKey];
-      const v = valueMap[name];
+      const rawName = d.properties[geoKey];
+      const name = resolveDisplayName(valueMap, rawName);
+      const v = resolveValue(valueMap, rawName);
       tooltip.style.display = 'block';
       tooltip.style.left = (event.clientX + 14) + 'px';
       tooltip.style.top  = (event.clientY - 28) + 'px';
@@ -751,8 +854,8 @@ async function s4_apply(){
     const candidates = geo.features.map(d => {
       const c    = path.centroid(d);
       const area = path.area(d);
-      const name = d.properties[geoKey] || '';
-      const v    = valueMap[name];
+      const name = resolveDisplayName(valueMap, d.properties[geoKey] || '');
+      const v    = resolveValue(valueMap, d.properties[geoKey] || '');
       return { d, c, area, name, v };
     })
     .filter(c => !isNaN(c.c[0]) && c.area >= minArea)
@@ -768,21 +871,33 @@ async function s4_apply(){
 
     const labelG = g.append('g').attr('pointer-events','none');
     candidates.forEach(({c, name, v, area}) => {
+      // Only label features that actually have data (avoids labelling grey polygons).
+      if(v == null) return;
+
       const shortName = name.length > 13 ? name.slice(0,12)+'…' : name;
-      const valStr    = v != null ? String(v) : '';
-      // Estimate bbox of two-line label
+      const valStr    = String(v);
       const textW = Math.max(shortName.length, valStr.length) * charW;
       const textH = lineH * 2;
-      const x1 = c[0] - textW/2, y1 = c[1] - textH/2;
-      const x2 = c[0] + textW/2, y2 = c[1] + textH/2;
+
+      // Clamp the label centre so the whole bbox stays inside the SVG viewport.
+      const margin = 3;
+      const cx = Math.max(textW/2 + margin, Math.min(W - textW/2 - margin, c[0]));
+      const cy = Math.max(textH/2 + margin, Math.min(H - textH/2 - margin, c[1]));
+
+      const x1 = cx - textW/2, y1 = cy - textH/2;
+      const x2 = cx + textW/2, y2 = cy + textH/2;
       if(overlaps(x1, y1, x2, y2)) return; // skip — would overlap
       placed.push({x1, y1, x2, y2});
 
       const txt = labelG.append('text')
-        .attr('transform', `translate(${c})`)
+        .attr('transform', `translate(${cx},${cy})`)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('font-family', 'system-ui,sans-serif');
+        .attr('font-family', 'system-ui,sans-serif')
+        .attr('paint-order', 'stroke')
+        .attr('stroke', 'rgba(0,0,0,0.45)')
+        .attr('stroke-width', 2)
+        .attr('stroke-linejoin', 'round');
 
       txt.append('tspan')
         .attr('x', 0).attr('dy', '-0.5em')
@@ -790,7 +905,7 @@ async function s4_apply(){
         .text(shortName);
       txt.append('tspan')
         .attr('x', 0).attr('dy', `${lineH}`)
-        .attr('font-size', fs - 1).attr('fill', '#fff').attr('opacity', '0.9')
+        .attr('font-size', fs - 1).attr('fill', '#fff').attr('opacity', '0.95')
         .text(valStr);
     });
   }
