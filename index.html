@@ -302,7 +302,14 @@ async function init(){
       Indicator: String(r.Indicator || '')
         .replace(/([A-Za-z)])\d+(?:\s*,\s*\d+)*(?=\s*\()/g, '$1')   // A: glued single/list
         .replace(/\s\d+(?:\s*,\s*\d+)+(?=\s*\()/g, '')              // B: spaced comma-list
-        .replace(/(?<!age)\s\d{1,3}(?=\s*\()/g, '')                         // C: lone spaced number (not after "age")
+        .replace(/(?<!age)\s\d{1,3}(?=\s*\()/g, '')                 // C: lone spaced number (not after "age")
+        .replace(/\s+\d{1,3}\.\s+[A-Z].*/,   '')                    // D: strip concatenated indicator numbers from PDF absorption e.g. "...facility (%) 57. Prevalence..."
+        .replace(/\s+(?:Women|Men)\s*$/,       '')                   // E: trailing section labels surviving after D e.g. "...level (%) Women"
+        .replace(/\s*[+†]\s*(?=\s*\(%\))/,    ' ')                  // F: footnote + marker before unit e.g. "delivery+ (%)" → "delivery (%)"
+        .replace(/\s+\/\s+/g,                  '/')                  // G: slash spacing e.g. "only / other milk" → "only/other milk"
+        .replace(/\(\s*%\s*\)/g,               '(%)')                // H: (% ) → (%)
+        .replace(/kg\/m\s*2?\s*\)\s*\(%\)/g,   'kg/m2) (%)')        // I: BMI unit variants → canonical "kg/m2) (%)"
+        .replace(/kg\/m\s*2?\s*\(%\)/g,        'kg/m2) (%)')        //    handles "kg/m (%)", "kg/m2 (%)", "kg/m 2) (%)"
         .replace(/\s{2,}/g, ' ')
         .trim()
     }));
@@ -568,9 +575,10 @@ async function loadGeoJSON(url){
 }
 
 function getStateFilename(state){
-  // GitHub repo stores state geojson files in UPPERCASE names
-  // e.g. "Jharkhand" -> "JHARKHAND_fornfhsdashboard.geojson"
-  return state.toUpperCase().replace(/[^A-Z0-9 ]/g, '_') + '_fornfhsdashboard.geojson';
+  // Spaces in state names are kept as-is in the geojson filename
+  // e.g. "Tamil Nadu" -> "Tamil Nadu_fornfhsdashboard.geojson"
+  // Non-space special chars (& / etc) are replaced with _
+  return state.replace(/[^A-Za-z0-9 ]/g, '_') + '_fornfhsdashboard.geojson';
 }
 
 async function s4_apply(){
