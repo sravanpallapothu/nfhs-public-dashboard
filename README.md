@@ -13,7 +13,6 @@ Please note that this is an independent effort with no endorsement from IIPS or 
 - Backend data source: [Google Sheets](https://docs.google.com/spreadsheets/d/1RH9p8c-x-1GWmHf7TmeKNOlOIdTTjZms1O8DdhcH8Ug/edit?gid=836994213#gid=836994213)
 
 - Google sheet is generated using an R Script to extract indicators from individual NFHS factsheets (see below)
-- A note on indicator names in the raw sheet. If you open the Google Sheet directly, you will notice that some indicator names contain trailing footnote numbers (e.g. stunted (height-for-age)18 (%) or adequate diet 10, 11 (%)). These are superscript reference numbers from the original NFHS factsheet PDFs and are an artefact of the PDF extraction process. They are stripped automatically by the dashboard at load time, so they do not affect what you see on screen — but they will be visible if you download the CSV directly from the sheet.
 ---
 
 ## Purpose
