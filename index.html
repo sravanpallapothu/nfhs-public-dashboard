@@ -75,6 +75,30 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
 .legend-swatch{width:16px;height:16px;border-radius:3px;border:1px solid rgba(0,0,0,.1);flex-shrink:0}
 .legend-title{font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-right:4px}
 .choro-tooltip{position:fixed;background:rgba(26,26,26,.92);color:#fff;padding:7px 11px;border-radius:6px;font-size:12px;pointer-events:none;z-index:9999;max-width:200px;line-height:1.5;display:none}
+/* Performance profile (s6) */
+.s6-sum{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center}
+.s6-chip{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid;cursor:default}
+.s6-chip.out{background:#d1fae5;color:#065f46;border-color:#6ee7b7}
+.s6-chip.avg{background:#fef3c7;color:#92400e;border-color:#fcd34d}
+.s6-chip.under{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+.s6-chip-n{font-size:18px;line-height:1}
+.s6-ref{font-size:12px;color:#6b7280;margin-bottom:16px}
+.s6-dom{font-size:11px;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.06em;padding:10px 12px 5px;margin-top:6px;border-top:2px solid #e2e5ea}
+.s6-dom:first-of-type{border-top:none;margin-top:0;padding-top:0}
+.s6-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:4px}
+.s6-tbl th{text-align:left;padding:7px 12px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #e2e5ea;background:#f9fafb;white-space:nowrap}
+.s6-tbl th:not(:first-child){text-align:right}
+.s6-tbl td{padding:9px 12px;border-bottom:1px solid #f0f2f5;vertical-align:middle}
+.s6-tbl td:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.s6-tbl tr:hover td{background:#fafbfc}
+.s6-ind{font-size:12px;color:#1a1a1a;line-height:1.4;max-width:340px}
+.s6-pill{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;border:1px solid;white-space:nowrap}
+.s6-pill.out{background:#d1fae5;color:#065f46;border-color:#6ee7b7}
+.s6-pill.avg{background:#fef3c7;color:#92400e;border-color:#fcd34d}
+.s6-pill.under{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+.s6-diff.pos{color:#059669;font-weight:600}
+.s6-diff.neg{color:#dc2626;font-weight:600}
+.s6-diff.neu{color:#6b7280}
 </style>
 </head>
 <body>
@@ -85,6 +109,7 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
     <div class="nav-tab" onclick="showScreen('s2',this)">Temporal trend</div>
     <div class="nav-tab" onclick="showScreen('s3',this)">Spatial-bar</div>
     <div class="nav-tab" onclick="showScreen('s4',this)">Spatial-map</div>
+    <div class="nav-tab" onclick="showScreen('s6',this)">Performance profile</div>
     <div class="nav-tab" onclick="showScreen('s5',this)">How to use</div>
   </div>
 </nav>
@@ -178,6 +203,45 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
   </div>
 </div>
 
+<!-- SCREEN 6: PERFORMANCE PROFILE -->
+<div class="screen" id="s6">
+  <div class="sidebar">
+    <div class="fg">
+      <div class="lbl">State</div>
+      <select id="s6_state" onchange="s6_onState()"><option value="">&#8212; Select &#8212;</option></select>
+    </div>
+    <div class="fg" id="s6_distGroup" style="display:none">
+      <div class="lbl">District <span style="font-weight:400;text-transform:none;font-size:10px;color:#9ca3af">(optional)</span></div>
+      <select id="s6_dist"><option value="">&#8212; State level &#8212;</option></select>
+    </div>
+    <div class="fg">
+      <div class="lbl">Round</div>
+      <select id="s6_round"><option value="">&#8212; Select &#8212;</option></select>
+    </div>
+    <hr class="divider"/>
+    <div class="fg">
+      <div class="lbl">Show</div>
+      <select id="s6_perf">
+        <option value="all">All indicators</option>
+        <option value="out">Outperforming (&gt;1 SD better)</option>
+        <option value="avg">Around average (&#177;1 SD)</option>
+        <option value="under">Underperforming (&gt;1 SD worse)</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="s6_apply()">Show profile</button>
+    <hr class="divider"/>
+    <div class="dl-row" style="margin-top:0">
+      <button class="btn btn-secondary btn-sm" onclick="s6_dlCSV()">&#8659; CSV</button>
+    </div>
+    <div style="font-size:11px;color:#9ca3af;line-height:1.5;margin-top:4px">
+      Performance is relative to the reference population for each indicator. Outperforming and underperforming are direction-aware &#8212; a low stunting rate is <em>outperforming</em>, not underperforming.
+    </div>
+  </div>
+  <div class="main" id="s6_main">
+    <div class="empty">Select a state and round, then click Show profile.</div>
+  </div>
+</div>
+
 <!-- SCREEN 5: HOW TO USE -->
 <div class="screen" id="s5">
   <div class="main" style="padding:24px">
@@ -188,6 +252,7 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
         <div class="how-tab" onclick="setHowTab('temporal',this)">Temporal trend</div>
         <div class="how-tab" onclick="setHowTab('spatial',this)">Spatial-bar</div>
         <div class="how-tab" onclick="setHowTab('choropleth',this)">Choropleth map</div>
+        <div class="how-tab" onclick="setHowTab('rankings',this)">Performance profile</div>
         <div class="how-tab" onclick="setHowTab('general',this)">General tips</div>
       </div>
       <div class="how-content active" id="how_snapshot">
@@ -250,6 +315,30 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
           <li><strong>Zoom and pan</strong> using your mouse scroll wheel and drag.</li>
           <li>Use <strong>⬇ PNG</strong> to download the map including the header card and legend. Use <strong>⬇ CSV</strong> to download the underlying data (includes Parent State column for district maps).</li>
         </ol>
+      </div>
+      <div class="how-content" id="how_rankings">
+        <ol>
+          <li>Select a <strong>state</strong> from the first dropdown. A second dropdown will appear — leave it on <strong>State level</strong> to profile the state against all other states, or choose a <strong>district</strong> to profile it against all districts in that state.</li>
+          <li>Choose a <strong>survey round</strong>, then optionally filter by <strong>Show</strong> to focus on one performance category. Click <strong>Show profile</strong>.</li>
+          <li>Results are grouped by <strong>domain</strong> (e.g. Child health, Nutrition). Within each domain, indicators are sorted worst-first so the most urgent gaps appear at the top.</li>
+          <li>The <strong>summary chips</strong> at the top give an at-a-glance count of how many indicators fall into each category across all domains.</li>
+        </ol>
+        <p style="margin-top:12px;font-weight:600">What the three performance categories mean.</p>
+        <p style="margin-top:6px">For each indicator, the dashboard computes the mean and standard deviation across all geographies in the reference population (all states for a state; all districts in the parent state for a district). It then classifies the selected geography:</p>
+        <ul style="margin-top:6px;padding-left:18px;line-height:1.8">
+          <li><span style="display:inline-block;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:8px;font-size:11px;font-weight:700;padding:1px 7px;margin-right:4px">↓ Underperforming</span> More than 1 SD worse than the reference mean.</li>
+          <li><span style="display:inline-block;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:8px;font-size:11px;font-weight:700;padding:1px 7px;margin-right:4px">○ Around average</span> Within 1 SD of the reference mean — typical performance for the peer group.</li>
+          <li><span style="display:inline-block;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;border-radius:8px;font-size:11px;font-weight:700;padding:1px 7px;margin-right:4px">↑ Outperforming</span> More than 1 SD better than the reference mean.</li>
+        </ul>
+        <p style="margin-top:10px;font-weight:600">Direction-awareness.</p>
+        <p style="margin-top:6px">Classification automatically accounts for whether the indicator is "higher is better" or "lower is better". A state with a <em>low</em> stunting rate is classified as <strong>Outperforming</strong> — the low value is a good outcome, not a deficit. A red pill next to an indicator means the geography is performing worse than its peers on that indicator regardless of whether the number is numerically high or low.</p>
+        <p style="margin-top:10px;font-weight:600">Reading the table columns.</p>
+        <ul style="margin-top:6px;padding-left:18px;line-height:1.8">
+          <li><strong>Value</strong> — the geography's own value for this indicator and round.</li>
+          <li><strong>Ref. mean</strong> — the average across the reference population (all states or all within-state districts).</li>
+          <li><strong>Diff.</strong> — the difference between the geography's value and the reference mean, coloured green if the deviation is in the favourable direction for the indicator, red if it is not.</li>
+        </ul>
+        <p style="margin-top:10px">Use <strong>⬇ CSV</strong> to download the full table including z-scores, which are useful for deeper analysis or reporting.</p>
       </div>
       <div class="how-content" id="how_general">
         <ol>
@@ -351,6 +440,7 @@ async function init(){
     document.getElementById(id).innerHTML='<option value="">— Select —</option>'+states.map(s=>`<option value="${s}">${s}</option>`).join('');
   });
   document.getElementById('s2_state').addEventListener('change',s2_onState);
+  s6_init();
 }
 
 function uniq(a){ return [...new Set(a)].filter(Boolean).sort(); }
@@ -1019,6 +1109,142 @@ function s4_dlPNG(){
 
 
 init();
+
+// ── SCREEN 6: PERFORMANCE PROFILE ─────────────────────────────────────────────────────────
+let s6Data = [];
+
+function s6_init() {
+  const states = uniq(allRows.filter(r => r['Geo Level']==='State').map(r => r.Geography));
+  setOpts('s6_state', states, 'Select state');
+  buildRoundSelect('s6_round');
+}
+
+function s6_onState() {
+  const state = val('s6_state');
+  const dg = document.getElementById('s6_distGroup');
+  if (!state) { dg.style.display = 'none'; return; }
+  dg.style.display = 'flex'; dg.style.flexDirection = 'column'; dg.style.gap = '5px';
+  const dists = uniq(allRows.filter(r => r['Geo Level']==='District' && r['Parent State']===state).map(r => r.Geography));
+  document.getElementById('s6_dist').innerHTML =
+    '<option value="">\u2014 State level \u2014</option>' +
+    dists.map(d => '<option value="' + d + '">' + d + '</option>').join('');
+}
+
+function s6_apply() {
+  const state  = val('s6_state');
+  const dist   = val('s6_dist');
+  const round  = val('s6_round');
+  const filter = val('s6_perf');
+  const main   = document.getElementById('s6_main');
+  if (!state || !round) {
+    main.innerHTML = '<div class="empty">Select a state and round, then click Show profile.</div>';
+    return;
+  }
+  const isDistrict = !!dist;
+  const geo      = isDistrict ? dist  : state;
+  const geoLevel = isDistrict ? 'District' : 'State';
+  const refLabel = isDistrict ? 'all districts in ' + state : 'all states (national)';
+
+  const geoRows = allRows.filter(r =>
+    r.Geography === geo && r['Geo Level'] === geoLevel &&
+    r.Round === round && r.Value != null && !isNaN(r.Value));
+
+  if (!geoRows.length) {
+    main.innerHTML = '<div class="empty">No data found for <strong>' + geo + '</strong> in <strong>' + round + '</strong>. Try a different round.</div>';
+    return;
+  }
+
+  s6Data = geoRows.map(row => {
+    const ind = row.Indicator, value = +row.Value;
+    const dir = getDirection(ind), hib = dir === 'Higher is better';
+    const refRows = allRows.filter(r =>
+      r['Geo Level'] === geoLevel && r.Round === round && r.Indicator === ind &&
+      r.Value != null && !isNaN(r.Value) &&
+      (isDistrict ? r['Parent State'] === state : true));
+    const refVals = refRows.map(r => +r.Value), n = refVals.length;
+    if (n < 2) return { ind, domain: row.Domain||'Unknown', value, mean: null, sd: null, z: null, perf: 'avg', dir, hib };
+    const mean = refVals.reduce((a,b) => a+b, 0) / n;
+    const sd   = Math.sqrt(refVals.reduce((s,v) => s + (v-mean)**2, 0) / n);
+    let z = null, perf = 'avg';
+    if (sd > 0) {
+      z = (value - mean) / sd;
+      if (hib) perf = z >  1 ? 'out' : z < -1 ? 'under' : 'avg';
+      else     perf = z < -1 ? 'out' : z >  1 ? 'under' : 'avg';
+    }
+    return { ind, domain: row.Domain||'Unknown', value, mean, sd, z, perf, dir, hib };
+  });
+
+  const shown = filter === 'all' ? s6Data : s6Data.filter(r => r.perf === filter);
+  if (!shown.length) {
+    const labels = { out:'outperforming', avg:'around-average', under:'underperforming' };
+    main.innerHTML = '<div class="empty">No ' + (labels[filter]||'') + ' indicators found for ' + geo + ' in ' + round + '.</div>';
+    return;
+  }
+
+  const nOut = s6Data.filter(r => r.perf==='out').length;
+  const nAvg = s6Data.filter(r => r.perf==='avg').length;
+  const nUnd = s6Data.filter(r => r.perf==='under').length;
+
+  let html = '<div class="s6-sum">' +
+    '<div class="s6-chip out"><span class="s6-chip-n">' + nOut + '</span> Outperforming</div>' +
+    '<div class="s6-chip avg"><span class="s6-chip-n">' + nAvg + '</span> Around average</div>' +
+    '<div class="s6-chip under"><span class="s6-chip-n">' + nUnd + '</span> Underperforming</div>' +
+    '</div><div class="s6-ref">Reference: <strong>' + geo + '</strong> compared against <strong>' + refLabel + '</strong> &middot; <strong>' + round + '</strong></div>';
+
+  const domains = uniq(shown.map(r => r.domain)).sort((a,b) => {
+    const ua = shown.filter(r => r.domain===a && r.perf==='under').length;
+    const ub = shown.filter(r => r.domain===b && r.perf==='under').length;
+    return ub !== ua ? ub - ua : a.localeCompare(b);
+  });
+
+  domains.forEach(dom => {
+    const rows = shown.filter(r => r.domain === dom).sort((a,b) => {
+      const order = {under:0, avg:1, out:2};
+      if (order[a.perf] !== order[b.perf]) return order[a.perf] - order[b.perf];
+      return (b.z!=null?Math.abs(b.z):0) - (a.z!=null?Math.abs(a.z):0);
+    });
+    const pillLbl = { out:'Outperforming', avg:'Around average', under:'Underperforming' };
+    const pillSym = { out:'\u2191', avg:'\u25cb', under:'\u2193' };
+    let trs = '';
+    rows.forEach(r => {
+      let diffHtml = '<span class="s6-diff neu">&mdash;</span>';
+      if (r.mean != null) {
+        const diff = r.value - r.mean, isGood = r.hib ? diff>=0 : diff<=0;
+        const cls = Math.abs(diff)<0.05 ? 'neu' : isGood ? 'pos' : 'neg';
+        diffHtml = '<span class="s6-diff ' + cls + '">' + (diff>0?'+':'') + diff.toFixed(1) + '</span>';
+      }
+      trs += '<tr><td><div class="s6-ind">' + r.ind + '</div>' +
+        '<span class="dir-pill ' + (r.hib?'higher':'lower') + '" style="margin-top:4px;display:inline-block;font-size:10px">' +
+        (r.hib?'\u2191':'\u2193') + ' ' + r.dir + '</span></td>' +
+        '<td><strong>' + r.value.toFixed(1) + '</strong></td>' +
+        '<td>' + (r.mean!=null?r.mean.toFixed(1):'&mdash;') + '</td>' +
+        '<td>' + diffHtml + '</td>' +
+        '<td><span class="s6-pill ' + r.perf + '">' + pillSym[r.perf] + ' ' + pillLbl[r.perf] + '</span></td></tr>';
+    });
+    html += '<div class="s6-dom">' + dom + '</div>' +
+      '<table class="s6-tbl"><thead><tr>' +
+      '<th>Indicator</th><th>Value</th><th>Ref. mean</th><th>Diff.</th><th>Performance</th>' +
+      '</tr></thead><tbody>' + trs + '</tbody></table>';
+  });
+  main.innerHTML = html;
+}
+
+function s6_dlCSV() {
+  if (!s6Data.length) return;
+  const filter = val('s6_perf');
+  const rows   = filter === 'all' ? s6Data : s6Data.filter(r => r.perf === filter);
+  const geo    = val('s6_dist') || val('s6_state');
+  const round  = val('s6_round');
+  const csvRows = rows.map(r => ({
+    Geography: geo, Round: round, Indicator: r.ind, Domain: r.domain, Direction: r.dir,
+    Value: r.value,
+    'Ref. Mean': r.mean!=null ? r.mean.toFixed(2) : '',
+    'Ref. SD':   r.sd!=null   ? r.sd.toFixed(2)   : '',
+    'z-score':   r.z!=null    ? r.z.toFixed(2)    : '',
+    Performance: {out:'Outperforming',avg:'Around average',under:'Underperforming'}[r.perf],
+  }));
+  dlCSV(csvRows, 'performance_' + geo.replace(/\s+/g,'_') + '_' + round.replace(/\s+/g,'_') + '.csv');
+}
 </script>
 </body>
 </html>
