@@ -74,6 +74,23 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
 .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#374151}
 .legend-swatch{width:16px;height:16px;border-radius:3px;border:1px solid rgba(0,0,0,.1);flex-shrink:0}
 .legend-title{font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-right:4px}
+
+/* Changes across rounds (s7) */
+.s7-lede{font-size:12px;color:#6b7280;margin-bottom:18px}
+.s7-section{margin-bottom:22px}
+.s7-section-head{font-size:13px;font-weight:700;padding:9px 14px;border-radius:6px 6px 0 0;display:flex;align-items:center;gap:8px;border:1px solid;border-bottom:none}
+.s7-section-head.imp{background:#d1fae5;color:#065f46;border-color:#6ee7b7}
+.s7-section-head.det{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+.s7-tbl{width:100%;border-collapse:collapse;font-size:13px;border:1px solid #e2e5ea;border-top:none;border-radius:0 0 6px 6px}
+.s7-tbl th{text-align:left;padding:7px 12px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #e2e5ea;background:#f9fafb;white-space:nowrap}
+.s7-tbl th:not(:first-child){text-align:right}
+.s7-tbl td{padding:9px 12px;border-bottom:1px solid #f0f2f5;vertical-align:middle}
+.s7-tbl td:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.s7-tbl tr:last-child td{border-bottom:none}
+.s7-tbl tr:hover td{background:#fafbfc}
+.s7-ch{font-weight:700}
+.s7-ch.imp{color:#059669}
+.s7-ch.det{color:#dc2626}
 .choro-tooltip{position:fixed;background:rgba(26,26,26,.92);color:#fff;padding:7px 11px;border-radius:6px;font-size:12px;pointer-events:none;z-index:9999;max-width:200px;line-height:1.5;display:none}
 /* Performance profile (s6) */
 .s6-sum{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center}
@@ -110,6 +127,7 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
     <div class="nav-tab" onclick="showScreen('s3',this)">Spatial-bar</div>
     <div class="nav-tab" onclick="showScreen('s4',this)">Spatial-map</div>
     <div class="nav-tab" onclick="showScreen('s6',this)">Performance profile</div>
+    <div class="nav-tab" onclick="showScreen('s7',this)">Changes across rounds</div>
     <div class="nav-tab" onclick="showScreen('s5',this)">How to use</div>
   </div>
 </nav>
@@ -242,6 +260,46 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
   </div>
 </div>
 
+<!-- SCREEN 7: CHANGES ACROSS ROUNDS -->
+<div class="screen" id="s7">
+  <div class="sidebar">
+    <div class="fg">
+      <div class="lbl">Geography level</div>
+      <select id="s7_level" onchange="s7_onLevel()">
+        <option value="National">National (India)</option>
+        <option value="State">State</option>
+        <option value="District">District</option>
+      </select>
+    </div>
+    <div class="fg" id="s7_stateGroup" style="display:none">
+      <div class="lbl">State</div>
+      <select id="s7_state" onchange="s7_onState()"><option value="">&#8212; Select &#8212;</option></select>
+    </div>
+    <div class="fg" id="s7_distGroup" style="display:none">
+      <div class="lbl">District</div>
+      <select id="s7_dist"><option value="">&#8212; Select &#8212;</option></select>
+    </div>
+    <div class="fg">
+      <div class="lbl">Round transition</div>
+      <select id="s7_pair">
+        <option value="4to5">NFHS-4 &#8594; NFHS-5</option>
+        <option value="5to6">NFHS-5 &#8594; NFHS-6</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="s7_apply()">Show changes</button>
+    <hr class="divider"/>
+    <div class="dl-row" style="margin-top:0">
+      <button class="btn btn-secondary btn-sm" onclick="s7_dlCSV()">&#8659; CSV</button>
+    </div>
+    <div style="font-size:11px;color:#9ca3af;line-height:1.5;margin-top:4px">
+      Changes are ranked by the actual shift in percentage points, adjusted for indicator direction. A fall in stunting is an <em>improvement</em>; a fall in immunisation coverage is a <em>deterioration</em>.
+    </div>
+  </div>
+  <div class="main" id="s7_main">
+    <div class="empty">Select a geography and round transition, then click Show changes.</div>
+  </div>
+</div>
+
 <!-- SCREEN 5: HOW TO USE -->
 <div class="screen" id="s5">
   <div class="main" style="padding:24px">
@@ -253,6 +311,7 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
         <div class="how-tab" onclick="setHowTab('spatial',this)">Spatial-bar</div>
         <div class="how-tab" onclick="setHowTab('choropleth',this)">Choropleth map</div>
         <div class="how-tab" onclick="setHowTab('rankings',this)">Performance profile</div>
+        <div class="how-tab" onclick="setHowTab('changes',this)">Changes across rounds</div>
         <div class="how-tab" onclick="setHowTab('general',this)">General tips</div>
       </div>
       <div class="how-content active" id="how_snapshot">
@@ -339,6 +398,22 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
           <li><strong>Diff.</strong> — the difference between the geography's value and the reference mean, coloured green if the deviation is in the favourable direction for the indicator, red if it is not.</li>
         </ul>
         <p style="margin-top:10px">Use <strong>⬇ CSV</strong> to download the full table including z-scores, which are useful for deeper analysis or reporting.</p>
+      </div>
+      <div class="how-content" id="how_changes">
+        <ol>
+          <li>Choose a <strong>geography level</strong>: National (India as a whole), State, or District. If you select State or District, additional dropdowns appear — select your state and optionally a district.</li>
+          <li>Choose a <strong>round transition</strong>: NFHS-4 &#8594; NFHS-5 covers the period roughly 2015&ndash;16 to 2019&ndash;21. NFHS-5 &#8594; NFHS-6 covers 2019&ndash;21 to 2023&ndash;24.</li>
+          <li>Click <strong>Show changes</strong>. Only indicators with data in both rounds for the selected geography are included.</li>
+          <li>Results show two ranked lists of 10 indicators: <strong>most improved</strong> and <strong>most deteriorated</strong> — sorted by the size of the shift.</li>
+          <li>Use <strong>&#8659; CSV</strong> to download the full dataset for all indicators, including an improvement score useful for further analysis.</li>
+        </ol>
+        <p style="margin-top:12px;font-weight:600">How improvement is measured.</p>
+        <p style="margin-top:6px">For each indicator the dashboard computes the raw change in percentage points: <em>Round 2 value &minus; Round 1 value</em>. It then adjusts for indicator direction:</p>
+        <ul style="margin-top:6px;padding-left:18px;line-height:1.8">
+          <li>For a <strong>&#8593; Higher is better</strong> indicator (e.g. full immunisation, institutional births), a <span style="color:#059669;font-weight:600">positive change</span> means improvement.</li>
+          <li>For a <strong>&#8595; Lower is better</strong> indicator (e.g. stunting, anaemia, infant mortality), a <span style="color:#059669;font-weight:600">negative change</span> means improvement &mdash; the condition got less prevalent.</li>
+        </ul>
+        <p style="margin-top:10px">This is why stunting falling from 40&#37; to 35&#37; (a change of &minus;5 pp) is shown in <span style="color:#059669;font-weight:600">green</span> and ranked as an improvement, while immunisation coverage falling from 80&#37; to 75&#37; (&minus;5 pp) is shown in <span style="color:#dc2626;font-weight:600">red</span> as a deterioration. The size of the shift determines the rank &mdash; the direction determines the colour.</p>
       </div>
       <div class="how-content" id="how_general">
         <ol>
@@ -441,6 +516,7 @@ async function init(){
   });
   document.getElementById('s2_state').addEventListener('change',s2_onState);
   s6_init();
+  s7_init();
 }
 
 function uniq(a){ return [...new Set(a)].filter(Boolean).sort(); }
@@ -1143,7 +1219,7 @@ function s6_apply() {
   const isDistrict = !!dist;
   const geo      = isDistrict ? dist  : state;
   const geoLevel = isDistrict ? 'District' : 'State';
-  const refLabel = isDistrict ? 'all districts in ' + state : 'all states (national)';
+  const refLabel = isDistrict ? state + ' state average' : 'national average';
 
   const geoRows = allRows.filter(r =>
     r.Geography === geo && r['Geo Level'] === geoLevel &&
@@ -1189,7 +1265,7 @@ function s6_apply() {
     '<div class="s6-chip out"><span class="s6-chip-n">' + nOut + '</span> Outperforming</div>' +
     '<div class="s6-chip avg"><span class="s6-chip-n">' + nAvg + '</span> Around average</div>' +
     '<div class="s6-chip under"><span class="s6-chip-n">' + nUnd + '</span> Underperforming</div>' +
-    '</div><div class="s6-ref">Reference: <strong>' + geo + '</strong> compared against <strong>' + refLabel + '</strong> &middot; <strong>' + round + '</strong></div>';
+    '</div><div class="s6-ref">Benchmark: <strong>' + refLabel + '</strong> &middot; <strong>' + round + '</strong></div>';
 
   const domains = uniq(shown.map(r => r.domain)).sort((a,b) => {
     const ua = shown.filter(r => r.domain===a && r.perf==='under').length;
@@ -1244,6 +1320,141 @@ function s6_dlCSV() {
     Performance: {out:'Outperforming',avg:'Around average',under:'Underperforming'}[r.perf],
   }));
   dlCSV(csvRows, 'performance_' + geo.replace(/\s+/g,'_') + '_' + round.replace(/\s+/g,'_') + '.csv');
+}
+
+// ── SCREEN 7: CHANGES ACROSS ROUNDS ─────────────────────────────────────────────
+let s7Data = [];
+
+function s7_init() {
+  const states = uniq(allRows.filter(r => r['Geo Level']==='State').map(r => r.Geography));
+  setOpts('s7_state', states, 'Select state');
+}
+
+function s7_onLevel() {
+  const level = val('s7_level');
+  document.getElementById('s7_stateGroup').style.display = level !== 'National' ? 'flex' : 'none';
+  document.getElementById('s7_stateGroup').style.flexDirection = 'column';
+  document.getElementById('s7_stateGroup').style.gap = '5px';
+  document.getElementById('s7_distGroup').style.display  = level === 'District'  ? 'flex' : 'none';
+  document.getElementById('s7_distGroup').style.flexDirection = 'column';
+  document.getElementById('s7_distGroup').style.gap = '5px';
+}
+
+function s7_onState() {
+  const state = val('s7_state');
+  if (!state) return;
+  const dists = uniq(allRows.filter(r => r['Geo Level']==='District' && r['Parent State']===state).map(r => r.Geography));
+  document.getElementById('s7_dist').innerHTML =
+    '<option value="">&#8212; Select &#8212;</option>' +
+    dists.map(d => '<option value="' + d + '">' + d + '</option>').join('');
+}
+
+function s7_apply() {
+  const level  = val('s7_level');
+  const state  = val('s7_state');
+  const dist   = val('s7_dist');
+  const pair   = val('s7_pair');
+  const main   = document.getElementById('s7_main');
+
+  // Resolve geography
+  let geo, geoLevel, geoLabel;
+  if (level === 'National') {
+    geo = 'India'; geoLevel = 'National'; geoLabel = 'India (national)';
+  } else if (level === 'State') {
+    if (!state) { main.innerHTML = '<div class="empty">Select a state.</div>'; return; }
+    geo = state; geoLevel = 'State'; geoLabel = state;
+  } else {
+    if (!dist) { main.innerHTML = '<div class="empty">Select a district.</div>'; return; }
+    geo = dist; geoLevel = 'District'; geoLabel = dist + ' (' + state + ')';
+  }
+
+  const round1 = pair === '4to5' ? 'NFHS-4' : 'NFHS-5';
+  const round2 = pair === '4to5' ? 'NFHS-5' : 'NFHS-6';
+  const pairLabel = round1 + ' → ' + round2;
+
+  // All indicators with data in BOTH rounds for this geography
+  const r1rows = allRows.filter(r => r.Geography===geo && r['Geo Level']===geoLevel && r.Round===round1 && r.Value!=null && !isNaN(r.Value));
+  const r2map  = {};
+  allRows.filter(r => r.Geography===geo && r['Geo Level']===geoLevel && r.Round===round2 && r.Value!=null && !isNaN(r.Value))
+    .forEach(r => r2map[r.Indicator] = r);
+
+  s7Data = [];
+  r1rows.forEach(r1 => {
+    const r2 = r2map[r1.Indicator];
+    if (!r2) return;
+    const dir = getDirection(r1.Indicator);
+    const hib = dir === 'Higher is better';
+    const v1  = +r1.Value, v2 = +r2.Value;
+    const change = v2 - v1;                          // raw arithmetic difference (pp)
+    const impScore = hib ? change : -change;          // positive = improvement (direction-aware)
+    s7Data.push({
+      ind:      r1.Indicator,
+      domain:   r1.Domain || 'Unknown',
+      dir,  hib,
+      v1, v2, change, impScore,
+    });
+  });
+
+  if (!s7Data.length) {
+    main.innerHTML = '<div class="empty">No indicators found with data in both <strong>' + round1 + '</strong> and <strong>' + round2 + '</strong> for <strong>' + geoLabel + '</strong>.</div>';
+    return;
+  }
+
+  // Sort by improvement score — top 10 improved, top 10 deteriorated
+  const sorted = [...s7Data].sort((a,b) => b.impScore - a.impScore);
+  const improved     = sorted.slice(0, 10);
+  const deteriorated = [...s7Data].sort((a,b) => a.impScore - b.impScore).slice(0, 10);
+
+  const lede = '<div class="s7-lede">' + geoLabel + ' &nbsp;&middot;&nbsp; ' + pairLabel + ' &nbsp;&middot;&nbsp; ' + s7Data.length + ' indicators with data in both rounds</div>';
+
+  function buildTable(rows, isImp) {
+    const sign = r => r.change > 0 ? '+' : r.change < 0 ? '' : '';
+    const trs = rows.map(r => {
+      const isGood = r.hib ? r.change > 0 : r.change < 0;
+      const chCls  = isGood ? 'imp' : 'det';
+      const ppStr  = sign(r) + r.change.toFixed(1) + ' pp';
+      const dirCls = r.hib ? 'higher' : 'lower';
+      const dirSym = r.hib ? '↑' : '↓';
+      return '<tr><td><div class="s6-ind">' + r.ind + '</div>' +
+        '<span class="dir-pill ' + dirCls + '" style="margin-top:3px;display:inline-block;font-size:10px">' + dirSym + ' ' + r.dir + '</span></td>' +
+        '<td>' + r.v1.toFixed(1) + '</td>' +
+        '<td>' + r.v2.toFixed(1) + '</td>' +
+        '<td><span class="s7-ch ' + chCls + '">' + ppStr + '</span></td></tr>';
+    }).join('');
+    const headCls = isImp ? 'imp' : 'det';
+    const headLbl = isImp ? '↑ Top 10 most improved' : '↓ Top 10 most deteriorated';
+    return '<div class="s7-section">' +
+      '<div class="s7-section-head ' + headCls + '">' + headLbl + '</div>' +
+      '<table class="s7-tbl"><thead><tr>' +
+      '<th>Indicator</th>' +
+      '<th>' + round1 + '</th>' +
+      '<th>' + round2 + '</th>' +
+      '<th>Change</th>' +
+      '</tr></thead><tbody>' + trs + '</tbody></table></div>';
+  }
+
+  main.innerHTML = lede + buildTable(improved, true) + buildTable(deteriorated, false);
+}
+
+function s7_dlCSV() {
+  if (!s7Data.length) return;
+  const level = val('s7_level');
+  const geo   = level==='National' ? 'India' : level==='State' ? val('s7_state') : val('s7_dist');
+  const pair  = val('s7_pair');
+  const r1    = pair==='4to5' ? 'NFHS-4' : 'NFHS-5';
+  const r2    = pair==='4to5' ? 'NFHS-5' : 'NFHS-6';
+  const rows  = s7Data.map(r => ({
+    Geography:   geo,
+    Indicator:   r.ind,
+    Domain:      r.domain,
+    Direction:   r.dir,
+    [r1]:        r.v1,
+    [r2]:        r.v2,
+    'Change (pp)':   r.change.toFixed(2),
+    'Improvement score': r.impScore.toFixed(2),
+    'Status':    r.impScore > 0 ? 'Improved' : r.impScore < 0 ? 'Deteriorated' : 'No change',
+  }));
+  dlCSV(rows, 'changes_' + geo.replace(/\s+/g,'_') + '_' + pair + '.csv');
 }
 </script>
 </body>
