@@ -128,6 +128,7 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
     <div class="nav-tab" onclick="showScreen('s4',this)">Spatial-map</div>
     <div class="nav-tab" onclick="showScreen('s6',this)">Performance profile</div>
     <div class="nav-tab" onclick="showScreen('s7',this)">Changes across rounds</div>
+    <div class="nav-tab" onclick="showScreen('s8',this)">Extremes within a round</div>
     <div class="nav-tab" onclick="showScreen('s5',this)">How to use</div>
   </div>
 </nav>
@@ -300,6 +301,35 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
   </div>
 </div>
 
+<!-- SCREEN 8: EXTREMES WITHIN A ROUND -->
+<div class="screen" id="s8">
+  <div class="sidebar">
+    <div class="fg">
+      <div class="lbl">State</div>
+      <select id="s8_state" onchange="s8_onState()"><option value="">&#8212; Select &#8212;</option></select>
+    </div>
+    <div class="fg" id="s8_distGroup" style="display:none">
+      <div class="lbl">District <span style="font-weight:400;text-transform:none;font-size:10px;color:#9ca3af">(optional)</span></div>
+      <select id="s8_dist"><option value="">&#8212; State level &#8212;</option></select>
+    </div>
+    <div class="fg">
+      <div class="lbl">Round</div>
+      <select id="s8_round"><option value="">&#8212; Select &#8212;</option></select>
+    </div>
+    <button class="btn btn-primary" onclick="s8_apply()">Show extremes</button>
+    <hr class="divider"/>
+    <div class="dl-row" style="margin-top:0">
+      <button class="btn btn-secondary btn-sm" onclick="s8_dlCSV()">&#8659; CSV</button>
+    </div>
+    <div style="font-size:11px;color:#9ca3af;line-height:1.5;margin-top:4px">
+      Rank 1 is always the best-performing geography for that indicator, direction-aware &#8212; a low stunting rate ranks 1st, not last. Only indicators with data for at least 2 geographies are ranked.
+    </div>
+  </div>
+  <div class="main" id="s8_main">
+    <div class="empty">Select a state and round, then click Show extremes.</div>
+  </div>
+</div>
+
 <!-- SCREEN 5: HOW TO USE -->
 <div class="screen" id="s5">
   <div class="main" style="padding:24px">
@@ -312,6 +342,7 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
         <div class="how-tab" onclick="setHowTab('choropleth',this)">Choropleth map</div>
         <div class="how-tab" onclick="setHowTab('rankings',this)">Performance profile</div>
         <div class="how-tab" onclick="setHowTab('changes',this)">Changes across rounds</div>
+        <div class="how-tab" onclick="setHowTab('extremes',this)">Extremes within a round</div>
         <div class="how-tab" onclick="setHowTab('general',this)">General tips</div>
       </div>
       <div class="how-content active" id="how_snapshot">
@@ -415,6 +446,19 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
         </ul>
         <p style="margin-top:10px">This is why stunting falling from 40&#37; to 35&#37; (a change of &minus;5 pp) is shown in <span style="color:#059669;font-weight:600">green</span> and ranked as an improvement, while immunisation coverage falling from 80&#37; to 75&#37; (&minus;5 pp) is shown in <span style="color:#dc2626;font-weight:600">red</span> as a deterioration. The size of the shift determines the rank &mdash; the direction determines the colour.</p>
       </div>
+      <div class="how-content" id="how_extremes">
+        <ol>
+          <li>Select a <strong>state</strong>. Optionally select a <strong>district</strong> within it &#8212; if you do, the district is ranked against all other districts in that state; if you leave it on State level, the state is ranked against all other states in the country.</li>
+          <li>Select a <strong>round</strong>, then click <strong>Show extremes</strong>.</li>
+          <li>You'll see two lists of 10: the geography's <strong>best-ranked</strong> indicators and its <strong>worst-ranked</strong> indicators for that round.</li>
+        </ol>
+        <p style="margin-top:12px;font-weight:600">How rank is calculated.</p>
+        <p style="margin-top:6px">For each indicator, every geography at the same level (all states, or all districts within the selected state) with a valid value for that round is sorted from best to worst, and the selected geography's position in that order is its rank. <strong>Rank 1 is always the best possible position</strong> &#8212; direction-aware, so a low stunting rate ranks 1st and a high full-immunisation rate also ranks 1st. This is why "best 10" and "worst 10" both account for whether higher or lower values are favourable for each indicator.</p>
+        <p style="margin-top:10px">Only indicators with data for at least 2 geographies in the reference population are ranked, since a rank of 1/1 is not meaningful.</p>
+        <p style="margin-top:10px;font-weight:600">Reading the rank column.</p>
+        <p style="margin-top:6px">Rank is shown as <strong>position/total</strong>, e.g. <strong>3/36</strong> means the geography is ranked 3rd best out of 36 geographies with data for that indicator. The total varies by indicator, since not every state or district has data for every indicator &#8212; always check the total alongside the position, since a rank of 14/15 is very different from 14/37.</p>
+        <p style="margin-top:10px">Use <strong>&#8659; CSV</strong> to download the full ranked list for every indicator (not just the top and bottom 10), sorted best-to-worst.</p>
+      </div>
       <div class="how-content" id="how_general">
         <ol>
           <li><strong>Green arrow ↑ = improvement, red arrow ↓ = deterioration</strong> — the direction is indicator-aware, so a falling stunting rate is shown in green even though the number went down.</li>
@@ -517,6 +561,7 @@ async function init(){
   document.getElementById('s2_state').addEventListener('change',s2_onState);
   s6_init();
   s7_init();
+  s8_init();
 }
 
 function uniq(a){ return [...new Set(a)].filter(Boolean).sort(); }
@@ -1455,6 +1500,132 @@ function s7_dlCSV() {
     'Status':    r.impScore > 0 ? 'Improved' : r.impScore < 0 ? 'Deteriorated' : 'No change',
   }));
   dlCSV(rows, 'changes_' + geo.replace(/\s+/g,'_') + '_' + pair + '.csv');
+}
+
+// ── SCREEN 8: EXTREMES WITHIN A ROUND ─────────────────────────────────────────────
+let s8Data = [];
+
+function s8_init() {
+  const states = uniq(allRows.filter(r => r['Geo Level']==='State').map(r => r.Geography));
+  setOpts('s8_state', states, 'Select state');
+  buildRoundSelect('s8_round');
+}
+
+function s8_onState() {
+  const state = val('s8_state');
+  const dg = document.getElementById('s8_distGroup');
+  if (!state) { dg.style.display = 'none'; return; }
+  dg.style.display = 'flex'; dg.style.flexDirection = 'column'; dg.style.gap = '5px';
+  const dists = uniq(allRows.filter(r => r['Geo Level']==='District' && r['Parent State']===state).map(r => r.Geography));
+  document.getElementById('s8_dist').innerHTML =
+    '<option value="">\u2014 State level \u2014</option>' +
+    dists.map(d => '<option value="' + d + '">' + d + '</option>').join('');
+}
+
+function s8_apply() {
+  const state  = val('s8_state');
+  const dist   = val('s8_dist');
+  const round  = val('s8_round');
+  const main   = document.getElementById('s8_main');
+
+  if (!state || !round) {
+    main.innerHTML = '<div class="empty">Select a state and round, then click Show extremes.</div>';
+    return;
+  }
+
+  const isDistrict = !!dist;
+  const geo        = isDistrict ? dist   : state;
+  const geoLevel   = isDistrict ? 'District' : 'State';
+  const refLabel   = isDistrict ? ('districts in ' + state) : 'states (national)';
+
+  // Every indicator the selected geography has a valid value for, in this round
+  const geoRows = allRows.filter(r =>
+    r.Geography === geo && r['Geo Level'] === geoLevel &&
+    r.Round === round && r.Value != null && !isNaN(r.Value));
+
+  if (!geoRows.length) {
+    main.innerHTML = '<div class="empty">No data found for <strong>' + geo + '</strong> in <strong>' + round + '</strong>. Try a different round.</div>';
+    return;
+  }
+
+  s8Data = [];
+  geoRows.forEach(row => {
+    const ind = row.Indicator;
+    const dir = getDirection(ind);
+    const hib = dir === 'Higher is better';
+
+    // Reference population for this indicator: same geo level, same round,
+    // restricted to the parent state when ranking a district.
+    const refRows = allRows.filter(r =>
+      r['Geo Level'] === geoLevel && r.Round === round && r.Indicator === ind &&
+      r.Value != null && !isNaN(r.Value) &&
+      (isDistrict ? r['Parent State'] === state : true));
+
+    const n = refRows.length;
+    if (n < 2) return;   // can't meaningfully rank with fewer than 2 geographies
+
+    // Direction-aware sort: rank 1 is always the best-performing geography.
+    // Higher-is-better -> sort descending (highest value = rank 1).
+    // Lower-is-better  -> sort ascending  (lowest value  = rank 1).
+    const sorted = [...refRows].sort((a,b) => hib ? (+b.Value - +a.Value) : (+a.Value - +b.Value));
+    const rank = sorted.findIndex(r => r.Geography === geo) + 1;
+    if (rank === 0) return; // safety guard, should not happen
+
+    s8Data.push({ ind, domain: row.Domain || 'Unknown', dir, hib, value: +row.Value, rank, n });
+  });
+
+  if (!s8Data.length) {
+    main.innerHTML = '<div class="empty">No indicators could be ranked for <strong>' + geo + '</strong> in <strong>' + round + '</strong> (need at least 2 ' + refLabel + ' with data).</div>';
+    return;
+  }
+
+  // Best 10: lowest rank number first. Worst 10: highest rank number first.
+  // Tie-break by total population size (n) so rankings among larger reference
+  // groups are shown ahead of equally-ranked ones among smaller groups.
+  const best10  = [...s8Data].sort((a,b) => a.rank - b.rank || b.n - a.n).slice(0, 10);
+  const worst10 = [...s8Data].sort((a,b) => b.rank - a.rank || b.n - a.n).slice(0, 10);
+
+  const lede = '<div class="s7-lede">' + geo + (isDistrict ? ' (' + state + ')' : '') +
+    ' &nbsp;&middot;&nbsp; ' + round + ' &nbsp;&middot;&nbsp; ' + s8Data.length +
+    ' ranked indicators, out of ' + (isDistrict ? refLabel : refLabel) + '</div>';
+
+  function buildTable(rows, isBest) {
+    const trs = rows.map(r => {
+      const dirCls = r.hib ? 'higher' : 'lower';
+      const dirSym = r.hib ? '\u2191' : '\u2193';
+      const rankCls = isBest ? 'imp' : 'det';
+      return '<tr><td><div class="s6-ind">' + r.ind + '</div>' +
+        '<span class="dir-pill ' + dirCls + '" style="margin-top:3px;display:inline-block;font-size:10px">' + dirSym + ' ' + r.dir + '</span></td>' +
+        '<td><span class="s7-ch ' + rankCls + '">' + r.rank + '/' + r.n + '</span></td></tr>';
+    }).join('');
+    const headCls = isBest ? 'imp' : 'det';
+    const headLbl = isBest ? '\u2191 Top 10 best-ranked indicators' : '\u2193 Top 10 worst-ranked indicators';
+    return '<div class="s7-section">' +
+      '<div class="s7-section-head ' + headCls + '">' + headLbl + '</div>' +
+      '<table class="s7-tbl"><thead><tr><th>Indicator</th><th>Rank</th></tr></thead>' +
+      '<tbody>' + trs + '</tbody></table></div>';
+  }
+
+  main.innerHTML = lede + buildTable(best10, true) + buildTable(worst10, false);
+}
+
+function s8_dlCSV() {
+  if (!s8Data.length) return;
+  const state = val('s8_state');
+  const dist  = val('s8_dist');
+  const round = val('s8_round');
+  const geo   = dist || state;
+  const rows  = [...s8Data].sort((a,b) => a.rank - b.rank).map(r => ({
+    Geography: geo,
+    Round: round,
+    Indicator: r.ind,
+    Domain: r.domain,
+    Direction: r.dir,
+    Value: r.value,
+    Rank: r.rank,
+    'Out of': r.n,
+  }));
+  dlCSV(rows, 'extremes_' + geo.replace(/\s+/g,'_') + '_' + round.replace(/\s+/g,'_') + '.csv');
 }
 </script>
 </body>
