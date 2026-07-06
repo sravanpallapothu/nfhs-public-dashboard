@@ -92,7 +92,7 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
 .s7-ch.imp{color:#059669}
 .s7-ch.det{color:#dc2626}
 .choro-tooltip{position:fixed;background:rgba(26,26,26,.92);color:#fff;padding:7px 11px;border-radius:6px;font-size:12px;pointer-events:none;z-index:9999;max-width:200px;line-height:1.5;display:none}
-/* Performance profile (s6) */
+/* Comparisons-Within Round (s6) */
 .s6-sum{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center}
 .s6-chip{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid;cursor:default}
 .s6-chip.out{background:#d1fae5;color:#065f46;border-color:#6ee7b7}
@@ -126,7 +126,7 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
     <div class="nav-tab" onclick="showScreen('s2',this)">Temporal trend</div>
     <div class="nav-tab" onclick="showScreen('s3',this)">Spatial-bar</div>
     <div class="nav-tab" onclick="showScreen('s4',this)">Spatial-map</div>
-    <div class="nav-tab" onclick="showScreen('s6',this)">Performance profile</div>
+    <div class="nav-tab" onclick="showScreen('s6',this)">Comparisons-Within Round</div>
     <div class="nav-tab" onclick="showScreen('s7',this)">Changes across rounds</div>
     <div class="nav-tab" onclick="showScreen('s8',this)">Extremes within a round</div>
     <div class="nav-tab" onclick="showScreen('s5',this)">How to use</div>
@@ -340,7 +340,7 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
         <div class="how-tab" onclick="setHowTab('temporal',this)">Temporal trend</div>
         <div class="how-tab" onclick="setHowTab('spatial',this)">Spatial-bar</div>
         <div class="how-tab" onclick="setHowTab('choropleth',this)">Choropleth map</div>
-        <div class="how-tab" onclick="setHowTab('rankings',this)">Performance profile</div>
+        <div class="how-tab" onclick="setHowTab('rankings',this)">Comparisons-Within Round</div>
         <div class="how-tab" onclick="setHowTab('changes',this)">Changes across rounds</div>
         <div class="how-tab" onclick="setHowTab('extremes',this)">Extremes within a round</div>
         <div class="how-tab" onclick="setHowTab('general',this)">General tips</div>
@@ -450,14 +450,18 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
         <ol>
           <li>Select a <strong>state</strong>. Optionally select a <strong>district</strong> within it &#8212; if you do, the district is ranked against all other districts in that state; if you leave it on State level, the state is ranked against all other states in the country.</li>
           <li>Select a <strong>round</strong>, then click <strong>Show extremes</strong>.</li>
-          <li>You'll see two lists of 10: the geography's <strong>best-ranked</strong> indicators and its <strong>worst-ranked</strong> indicators for that round.</li>
+          <li>You'll see two numbered lists of 10: the geography's <strong>best-ranked</strong> indicators and its <strong>worst-ranked</strong> indicators for that round.</li>
         </ol>
         <p style="margin-top:12px;font-weight:600">How rank is calculated.</p>
         <p style="margin-top:6px">For each indicator, every geography at the same level (all states, or all districts within the selected state) with a valid value for that round is sorted from best to worst, and the selected geography's position in that order is its rank. <strong>Rank 1 is always the best possible position</strong> &#8212; direction-aware, so a low stunting rate ranks 1st and a high full-immunisation rate also ranks 1st. This is why "best 10" and "worst 10" both account for whether higher or lower values are favourable for each indicator.</p>
         <p style="margin-top:10px">Only indicators with data for at least 2 geographies in the reference population are ranked, since a rank of 1/1 is not meaningful.</p>
-        <p style="margin-top:10px;font-weight:600">Reading the rank column.</p>
-        <p style="margin-top:6px">Rank is shown as <strong>position/total</strong>, e.g. <strong>3/36</strong> means the geography is ranked 3rd best out of 36 geographies with data for that indicator. The total varies by indicator, since not every state or district has data for every indicator &#8212; always check the total alongside the position, since a rank of 14/15 is very different from 14/37.</p>
-        <p style="margin-top:10px">Use <strong>&#8659; CSV</strong> to download the full ranked list for every indicator (not just the top and bottom 10), sorted best-to-worst.</p>
+        <p style="margin-top:10px;font-weight:600">Reading the table columns.</p>
+        <ul style="margin-top:6px;padding-left:18px;line-height:1.8">
+          <li><strong>Value</strong> &#8212; the geography's own value for this indicator and round.</li>
+          <li><strong>National avg. / State avg.</strong> &#8212; the reference average for this indicator: the national average across all states when a state is selected, or the parent state's average across all its districts when a district is selected.</li>
+          <li><strong>Rank</strong> &#8212; shown as <strong>position/total</strong>, e.g. <strong>3/36</strong> means the geography is ranked 3rd best out of 36 geographies with data for that indicator. The total varies by indicator, since not every state or district has data for every indicator &#8212; always check the total alongside the position, since a rank of 14/15 is very different from 14/37.</li>
+        </ul>
+        <p style="margin-top:10px">Use <strong>&#8659; CSV</strong> to download the full ranked list for every indicator (not just the top and bottom 10), sorted best-to-worst, including the reference average for each row.</p>
       </div>
       <div class="how-content" id="how_general">
         <ol>
@@ -1571,7 +1575,12 @@ function s8_apply() {
     const rank = sorted.findIndex(r => r.Geography === geo) + 1;
     if (rank === 0) return; // safety guard, should not happen
 
-    s8Data.push({ ind, domain: row.Domain || 'Unknown', dir, hib, value: +row.Value, rank, n });
+    // Reference average: national average (all states) when ranking a state,
+    // or the parent state's average (all its districts) when ranking a district.
+    const refVals = refRows.map(r => +r.Value);
+    const refMean = refVals.reduce((a,b) => a+b, 0) / refVals.length;
+
+    s8Data.push({ ind, domain: row.Domain || 'Unknown', dir, hib, value: +row.Value, refMean, rank, n });
   });
 
   if (!s8Data.length) {
@@ -1585,24 +1594,29 @@ function s8_apply() {
   const best10  = [...s8Data].sort((a,b) => a.rank - b.rank || b.n - a.n).slice(0, 10);
   const worst10 = [...s8Data].sort((a,b) => b.rank - a.rank || b.n - a.n).slice(0, 10);
 
+  const refColLabel = isDistrict ? (state + ' avg.') : 'National avg.';
+
   const lede = '<div class="s7-lede">' + geo + (isDistrict ? ' (' + state + ')' : '') +
     ' &nbsp;&middot;&nbsp; ' + round + ' &nbsp;&middot;&nbsp; ' + s8Data.length +
     ' ranked indicators, out of ' + (isDistrict ? refLabel : refLabel) + '</div>';
 
   function buildTable(rows, isBest) {
-    const trs = rows.map(r => {
+    const trs = rows.map((r, i) => {
       const dirCls = r.hib ? 'higher' : 'lower';
       const dirSym = r.hib ? '\u2191' : '\u2193';
       const rankCls = isBest ? 'imp' : 'det';
-      return '<tr><td><div class="s6-ind">' + r.ind + '</div>' +
+      return '<tr><td>' + (i+1) + '</td>' +
+        '<td style="text-align:left"><div class="s6-ind">' + r.ind + '</div>' +
         '<span class="dir-pill ' + dirCls + '" style="margin-top:3px;display:inline-block;font-size:10px">' + dirSym + ' ' + r.dir + '</span></td>' +
+        '<td><strong>' + r.value.toFixed(1) + '</strong></td>' +
+        '<td>' + r.refMean.toFixed(1) + '</td>' +
         '<td><span class="s7-ch ' + rankCls + '">' + r.rank + '/' + r.n + '</span></td></tr>';
     }).join('');
     const headCls = isBest ? 'imp' : 'det';
     const headLbl = isBest ? '\u2191 Top 10 best-ranked indicators' : '\u2193 Top 10 worst-ranked indicators';
     return '<div class="s7-section">' +
       '<div class="s7-section-head ' + headCls + '">' + headLbl + '</div>' +
-      '<table class="s7-tbl"><thead><tr><th>Indicator</th><th>Rank</th></tr></thead>' +
+      '<table class="s7-tbl"><thead><tr><th>#</th><th style="text-align:left">Indicator</th><th>Value</th><th>' + refColLabel + '</th><th>Rank</th></tr></thead>' +
       '<tbody>' + trs + '</tbody></table></div>';
   }
 
@@ -1615,6 +1629,8 @@ function s8_dlCSV() {
   const dist  = val('s8_dist');
   const round = val('s8_round');
   const geo   = dist || state;
+  const isDistrict = !!dist;
+  const refColName = isDistrict ? (state + ' average') : 'National average';
   const rows  = [...s8Data].sort((a,b) => a.rank - b.rank).map(r => ({
     Geography: geo,
     Round: round,
@@ -1622,6 +1638,7 @@ function s8_dlCSV() {
     Domain: r.domain,
     Direction: r.dir,
     Value: r.value,
+    [refColName]: r.refMean.toFixed(2),
     Rank: r.rank,
     'Out of': r.n,
   }));
