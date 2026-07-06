@@ -434,17 +434,18 @@ select:focus{outline:2px solid #1a3a5c;border-color:transparent}
         <ol>
           <li>Choose a <strong>geography level</strong>: National (India as a whole), State, or District. If you select State or District, additional dropdowns appear — select your state and optionally a district.</li>
           <li>Choose a <strong>round transition</strong>: NFHS-4 &#8594; NFHS-5 covers the period roughly 2015&ndash;16 to 2019&ndash;21. NFHS-5 &#8594; NFHS-6 covers 2019&ndash;21 to 2023&ndash;24.</li>
-          <li>Click <strong>Show changes</strong>. Only indicators with data in both rounds for the selected geography are included.</li>
-          <li>Results show two ranked lists of 10 indicators: <strong>most improved</strong> and <strong>most deteriorated</strong> — sorted by the size of the shift.</li>
+          <li>Click <strong>Show changes</strong>. Only indicators with data in both rounds for the selected geography are included &#8212; these are the <strong>comparable indicators</strong> for that geography and round transition.</li>
+          <li>Three summary chips at the top show how many indicators <strong>Improved</strong>, showed <strong>No change</strong>, or <strong>Deteriorated</strong>, across every comparable indicator &#8212; not just the top and bottom 10. These three counts always add up to the total number of comparable indicators shown just below the chips, e.g. <strong>40 + 5 + 24 = 69 comparable indicators</strong>.</li>
+          <li>Below that, two ranked lists of 10 indicators: <strong>most improved</strong> and <strong>most deteriorated</strong> — sorted by the size of the shift.</li>
           <li>Use <strong>&#8659; CSV</strong> to download the full dataset for all indicators, including an improvement score useful for further analysis.</li>
         </ol>
         <p style="margin-top:12px;font-weight:600">How improvement is measured.</p>
-        <p style="margin-top:6px">For each indicator the dashboard computes the raw change in percentage points: <em>Round 2 value &minus; Round 1 value</em>. It then adjusts for indicator direction:</p>
+        <p style="margin-top:6px">For each indicator the dashboard computes the raw change in percentage points: <em>Round 2 value &minus; Round 1 value</em>. It then adjusts for indicator direction <strong>before</strong> classifying the indicator:</p>
         <ul style="margin-top:6px;padding-left:18px;line-height:1.8">
           <li>For a <strong>&#8593; Higher is better</strong> indicator (e.g. full immunisation, institutional births), a <span style="color:#059669;font-weight:600">positive change</span> means improvement.</li>
           <li>For a <strong>&#8595; Lower is better</strong> indicator (e.g. stunting, anaemia, infant mortality), a <span style="color:#059669;font-weight:600">negative change</span> means improvement &mdash; the condition got less prevalent.</li>
         </ul>
-        <p style="margin-top:10px">This is why stunting falling from 40&#37; to 35&#37; (a change of &minus;5 pp) is shown in <span style="color:#059669;font-weight:600">green</span> and ranked as an improvement, while immunisation coverage falling from 80&#37; to 75&#37; (&minus;5 pp) is shown in <span style="color:#dc2626;font-weight:600">red</span> as a deterioration. The size of the shift determines the rank &mdash; the direction determines the colour.</p>
+        <p style="margin-top:10px">This is why stunting falling from 40&#37; to 35&#37; (a change of &minus;5 pp) is shown in <span style="color:#059669;font-weight:600">green</span> and counted as <strong>Improved</strong>, while immunisation coverage falling from 80&#37; to 75&#37; (&minus;5 pp) is shown in <span style="color:#dc2626;font-weight:600">red</span> and counted as <strong>Deteriorated</strong> &#8212; both are &minus;5 pp raw changes, but direction determines which bucket each falls into. An indicator whose value is <strong>genuinely identical</strong> in both rounds (an exact zero change) is counted as <strong>No change</strong> regardless of direction, since there is no shift to apply a direction to.</p>
       </div>
       <div class="how-content" id="how_extremes">
         <ol>
@@ -1454,7 +1455,36 @@ function s7_apply() {
   const improved     = sorted.slice(0, 10);
   const deteriorated = [...s7Data].sort((a,b) => a.impScore - b.impScore).slice(0, 10);
 
-  const lede = '<div class="s7-lede">' + geoLabel + ' &nbsp;&middot;&nbsp; ' + pairLabel + ' &nbsp;&middot;&nbsp; ' + s7Data.length + ' indicators with data in both rounds</div>';
+  // Summary counts across ALL comparable indicators for this geography and round
+  // transition (not just the top/bottom 10). Three buckets: Improved, No change,
+  // Deteriorated. This is an EXHAUSTIVE, MUTUALLY-EXCLUSIVE partition of impScore
+  // against zero — every real number is exactly one of >0, ===0, or <0 — so the
+  // three counts are guaranteed by construction to sum to totalComparable,
+  // regardless of geography level (National/State/District) or round transition.
+  // nDet is computed as "total minus the other two", not as an independent
+  // filter, so the invariant holds even if floating-point edge cases existed.
+  // Direction is already baked into impScore (see above, where impScore is
+  // computed as +change for higher-is-better and -change for lower-is-better):
+  // a falling stunting rate is a positive impScore (improvement), a falling
+  // immunisation rate is a negative impScore (deterioration) — both are -5pp
+  // raw changes, but they land in opposite buckets because direction is
+  // accounted for before the Improved/No change/Deteriorated split, not after.
+  // An indicator whose value is IDENTICAL in both rounds (change === 0) always
+  // has impScore === 0 regardless of direction, so it always lands in
+  // "No change" — direction is irrelevant when there is no change to sign.
+  const totalComparable = s7Data.length;
+  const nImp  = s7Data.filter(r => r.impScore > 0).length;
+  const nFlat = s7Data.filter(r => r.impScore === 0).length;
+  const nDet  = totalComparable - nImp - nFlat;
+
+  const summary = '<div class="s6-sum">' +
+    '<div class="s6-chip out"><span class="s6-chip-n">' + nImp + '</span> Improved</div>' +
+    '<div class="s6-chip avg"><span class="s6-chip-n">' + nFlat + '</span> No change</div>' +
+    '<div class="s6-chip under"><span class="s6-chip-n">' + nDet + '</span> Deteriorated</div>' +
+    '</div>' +
+    '<div class="s7-lede" style="margin-bottom:4px">' + nImp + ' + ' + nFlat + ' + ' + nDet + ' = <strong>' + totalComparable + '</strong> comparable indicators for this geography and round transition</div>';
+
+  const lede = '<div class="s7-lede">' + geoLabel + ' &nbsp;&middot;&nbsp; ' + pairLabel + ' &nbsp;&middot;&nbsp; ' + totalComparable + ' indicators with data in both rounds</div>';
 
   function buildTable(rows, isImp) {
     const sign = r => r.change > 0 ? '+' : r.change < 0 ? '' : '';
@@ -1482,7 +1512,7 @@ function s7_apply() {
       '</tr></thead><tbody>' + trs + '</tbody></table></div>';
   }
 
-  main.innerHTML = lede + buildTable(improved, true) + buildTable(deteriorated, false);
+  main.innerHTML = summary + lede + buildTable(improved, true) + buildTable(deteriorated, false);
 }
 
 function s7_dlCSV() {
